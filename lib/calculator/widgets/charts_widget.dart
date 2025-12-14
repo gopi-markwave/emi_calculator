@@ -311,7 +311,7 @@ class BarChartWidget extends StatelessWidget {
           BarChartRodData(
             toY: totals[index],
             width: isMobile ? 18 : 22,
-            color: index.isEven ? Colors.blue : Colors.green,
+            color: index.isEven ? Colors.blue : Colors.teal,
             borderRadius: BorderRadius.circular(4),
           ),
         ],

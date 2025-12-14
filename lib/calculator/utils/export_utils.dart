@@ -1,7 +1,8 @@
 import 'dart:typed_data';
+import 'package:file_saver/file_saver.dart';
 import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
-import 'package:file_saver/file_saver.dart';
+import 'package:syncfusion_flutter_xlsio/xlsio.dart' hide Column, Row, Border;
 
 class ExportUtils {
   static Future<void> exportToPDF({
@@ -69,19 +70,64 @@ class ExportUtils {
     final List<int> bytes = document.saveSync();
     document.dispose();
 
-    // Save using FileSaver
-    // await FileSaver.instance.saveFile(
-    //   name: "$fileName.pdf",
-    //   bytes: Uint8List.fromList(bytes),
-    //   mimeType: MimeType.pdf,
-    // );
-    await FileSaver.instance.saveAs(
+    await FileSaver.instance.saveFile(
       name: "$fileName.pdf",
-
       bytes: Uint8List.fromList(bytes),
-      fileExtension: "pdf",
-
       mimeType: MimeType.pdf,
+    );
+  }
+
+  static Future<void> exportToExcel({
+    required List<Map<String, dynamic>> data,
+    required String fileName,
+  }) async {
+    if (data.isEmpty) return;
+
+    // Create a new Excel document
+    final Workbook workbook = Workbook();
+    final Worksheet sheet = workbook.worksheets[0];
+
+    // --- Extract Headers ---
+    final headers = data.first.keys.toList();
+
+    // Write Headers
+    for (int i = 0; i < headers.length; i++) {
+      final cell = sheet.getRangeByIndex(1, i + 1);
+      cell.setValue(headers[i]);
+      cell.cellStyle.backColor = '#4472C4';
+      cell.cellStyle.fontColor = '#FFFFFF';
+      cell.cellStyle.bold = true;
+    }
+
+    // Write Data
+    for (int i = 0; i < data.length; i++) {
+      final rowMap = data[i];
+      for (int j = 0; j < headers.length; j++) {
+        final key = headers[j];
+        final value = rowMap[key];
+        final cell = sheet.getRangeByIndex(i + 2, j + 1);
+
+        if (value is num) {
+          cell.setNumber(value.toDouble());
+        } else {
+          cell.setValue(value.toString());
+        }
+      }
+    }
+
+    // Auto-fit columns
+    for (int i = 0; i < headers.length; i++) {
+      sheet.autoFitColumn(i + 1);
+    }
+
+    // Save
+    final List<int> bytes = workbook.saveAsStream();
+    workbook.dispose();
+
+    await FileSaver.instance.saveFile(
+      name: "$fileName.xlsx",
+      bytes: Uint8List.fromList(bytes),
+      mimeType: MimeType.microsoftExcel,
     );
   }
 }

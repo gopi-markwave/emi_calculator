@@ -27,7 +27,9 @@ class HeaderWidget extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
+              color: Theme.of(
+                context,
+              ).colorScheme.primary.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(
@@ -46,7 +48,8 @@ class HeaderWidget extends StatelessWidget {
                   style: GoogleFonts.inter(
                     fontSize: isMobile ? 20 : 24,
                     fontWeight: FontWeight.w700,
-                    color: Theme.of(context).colorScheme.primary,
+                    // color: Theme.of(context).colorScheme.primary,
+                    color: Colors.black,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -54,7 +57,9 @@ class HeaderWidget extends StatelessWidget {
                   'Get instant loan calculations with detailed payment breakdown',
                   style: GoogleFonts.inter(
                     fontSize: isMobile ? 14 : 16,
-                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withValues(alpha: 0.7),
                   ),
                 ),
               ],

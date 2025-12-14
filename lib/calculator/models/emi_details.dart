@@ -1,4 +1,4 @@
-import 'package:emi_calculator/models/emi_schedule_row.dart';
+import 'package:emi_calculator/calculator/models/emi_schedule_row.dart';
 
 class EmiDetails {
   final double amount;

@@ -1,5 +1,6 @@
-import 'package:emi_calculator/models/emi_details.dart';
-import 'package:emi_calculator/models/emi_schedule_row.dart';
+import 'package:emi_calculator/calculator/models/emi_details.dart';
+import 'package:emi_calculator/calculator/models/emi_schedule_row.dart';
+import 'package:emi_calculator/calculator/utils/export_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -39,6 +40,7 @@ class EmiNotifier extends ChangeNotifier {
   String? get rateErrorMessage => _state.rateErrorMessage;
   int get units => _state.units;
   bool get cpfEnabled => _state.cpfEnabled;
+  int get paginationLimit => _paginationLimit;
 
   // Computed Business Metrics
   double get totalRevenue =>
@@ -113,6 +115,7 @@ class EmiNotifier extends ChangeNotifier {
   );
 
   int currentMonth = 1;
+  int _paginationLimit = 12;
 
   EmiNotifier() {
     _calculate();
@@ -171,8 +174,14 @@ class EmiNotifier extends ChangeNotifier {
     _calculate();
   }
 
+  void setPaginationLimit(int limit) {
+    _paginationLimit = limit;
+    notifyListeners();
+  }
+
   void reset() {
     _state = _state.copyWith(amount: 400000, rate: 18.0, years: 60);
+    _paginationLimit = 12;
     _calculate();
   }
 
@@ -525,6 +534,33 @@ class EmiNotifier extends ChangeNotifier {
       );
     }
     return yearly;
+  }
+
+  Future<void> exportSchedule({required bool isYearly}) async {
+    final scheduleToExport = isYearly ? yearlySchedule : schedule;
+
+    // Map data for export
+    final List<Map<String, dynamic>> data = scheduleToExport.map((row) {
+      return {
+        isYearly ? 'Year' : 'Month': row.month,
+        isYearly ? 'Total Payment' : 'Monthly Payment': row.emi + row.cpf,
+        'EMI': row.emi,
+        isYearly ? 'Total CPF' : 'Monthly CPF': row.cpf,
+        'Revenue': row.revenue,
+        'Principal': row.principal,
+        'Interest': row.interest,
+        'Balance': row.balance,
+        'Profit': row.profit,
+        'From Pocket': row.loss,
+        'Net Cash': row.profit - row.loss,
+      };
+    }).toList();
+
+    await ExportUtils.exportToExcel(
+      data: data,
+      fileName:
+          'EMI_Schedule_${isYearly ? "Yearly" : "Monthly"}_${DateTime.now().millisecondsSinceEpoch}',
+    );
   }
 }
 
