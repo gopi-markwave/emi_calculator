@@ -4,21 +4,112 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:syncfusion_flutter_sliders/sliders.dart';
+import 'dart:async';
 import '../providers/emi_provider.dart';
 
-class InputCardWidget extends ConsumerWidget {
+class InputCardWidget extends ConsumerStatefulWidget {
   final bool isMobile;
 
   const InputCardWidget({super.key, required this.isMobile});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<InputCardWidget> createState() => _InputCardWidgetState();
+}
+
+class _InputCardWidgetState extends ConsumerState<InputCardWidget> {
+  late TextEditingController _amountController;
+  late TextEditingController _unitsController;
+  final FocusNode _amountFocus = FocusNode();
+  final FocusNode _unitsFocus = FocusNode();
+  Timer? _debounce;
+
+  @override
+  void initState() {
+    super.initState();
+    final notifier = ref.read(emiProvider);
+    _amountController = TextEditingController(
+      text: notifier.amount.toInt().toString(),
+    );
+    _unitsController = TextEditingController(text: notifier.units.toString());
+
+    _amountFocus.addListener(() {
+      if (!_amountFocus.hasFocus) {
+        // When focus is lost, ensure the controller text is formatted correctly
+        // and matches the actual value in the provider.
+        final currentAmount =
+            double.tryParse(_amountController.text.replaceAll(',', '')) ?? 0;
+        if ((currentAmount - ref.read(emiProvider).amount).abs() > 0.1) {
+          _amountController.text = ref
+              .read(emiProvider)
+              .amount
+              .toInt()
+              .toString();
+        }
+      }
+    });
+
+    _unitsFocus.addListener(() {
+      if (!_unitsFocus.hasFocus) {
+        // When focus is lost, ensure the controller text matches the actual value.
+        final currentUnits = int.tryParse(_unitsController.text) ?? 0;
+        if (currentUnits != ref.read(emiProvider).units) {
+          _unitsController.text = ref.read(emiProvider).units.toString();
+        }
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _amountController.dispose();
+    _unitsController.dispose();
+    _amountFocus.dispose();
+    _unitsFocus.dispose();
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  void _onAmountChanged(String value) {
+    if (_debounce?.isActive ?? false) _debounce!.cancel();
+    _debounce = Timer(const Duration(milliseconds: 500), () {
+      final amount = double.tryParse(value.replaceAll(',', '')) ?? 0;
+      ref.read(emiProvider.notifier).updateAmount(amount);
+    });
+  }
+
+  void _onUnitsChanged(String value) {
+    if (_debounce?.isActive ?? false) _debounce!.cancel();
+    _debounce = Timer(const Duration(milliseconds: 300), () {
+      final units = int.tryParse(value) ?? 0;
+      if (units > 0) ref.read(emiProvider.notifier).updateUnits(units);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final emiNotifier = ref.watch(emiProvider);
+    final isMobile = widget.isMobile;
     final showValidation = emiNotifier.rate < 2.5 && emiNotifier.rate > 0;
+
+    // Sync external changes (e.g. from Slider)
+    if (!_amountFocus.hasFocus) {
+      final currentAmount =
+          double.tryParse(_amountController.text.replaceAll(',', '')) ?? 0;
+      if ((currentAmount - emiNotifier.amount).abs() > 0.1) {
+        _amountController.text = emiNotifier.amount.toInt().toString();
+      }
+    }
+
+    if (!_unitsFocus.hasFocus) {
+      final currentUnits = int.tryParse(_unitsController.text) ?? 1;
+      if (currentUnits != emiNotifier.units) {
+        _unitsController.text = emiNotifier.units.toString();
+      }
+    }
 
     return Card(
       elevation: 4,
-      shadowColor: Colors.black.withValues(alpha: 0.1),
+      shadowColor: Colors.black.withOpacity(0.1),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: EdgeInsets.all(isMobile ? 20 : 24),
@@ -32,7 +123,7 @@ class InputCardWidget extends ConsumerWidget {
                   decoration: BoxDecoration(
                     color: Theme.of(
                       context,
-                    ).colorScheme.primary.withValues(alpha: 0.1),
+                    ).colorScheme.primary.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Icon(
@@ -54,20 +145,21 @@ class InputCardWidget extends ConsumerWidget {
             const SizedBox(height: 20),
 
             // Loan Amount Field
-            ModernTextField(
-              label: 'Loan Amount',
-              hint: 'e.g. 4,00,000',
-              icon: Icons.account_balance,
-              prefix: '₹',
-              isMobile: isMobile,
-              value: emiNotifier.amount.toInt().toString(),
-              errorText: emiNotifier.hasAmountError
-                  ? emiNotifier.amountErrorMessage
-                  : null,
-              onChanged: (value) {
-                final amount = double.tryParse(value.replaceAll(',', '')) ?? 0;
-                emiNotifier.updateAmount(amount);
-              },
+            TextFormField(
+              controller: _amountController,
+              focusNode: _amountFocus,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                labelText: 'Loan Amount',
+                hintText: 'e.g. 4,00,000',
+                prefixText: '₹ ',
+                prefixIcon: const Icon(Icons.account_balance),
+                errorText: emiNotifier.hasAmountError
+                    ? emiNotifier.amountErrorMessage
+                    : null,
+                border: const OutlineInputBorder(),
+              ),
+              onChanged: _onAmountChanged,
             ),
             const SizedBox(height: 16),
             // CPF switch
@@ -111,14 +203,10 @@ class InputCardWidget extends ConsumerWidget {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Theme.of(
-                  context,
-                ).colorScheme.primary.withValues(alpha: 0.05),
+                color: Theme.of(context).colorScheme.primary.withOpacity(0.05),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.primary.withValues(alpha: 0.2),
+                  color: Theme.of(context).colorScheme.primary.withOpacity(0.2),
                 ),
               ),
               child: Row(
@@ -303,15 +391,9 @@ class InputCardWidget extends ConsumerWidget {
                           hintText: 'Enter units (e.g. 1)',
                           hintStyle: GoogleFonts.inter(fontSize: 14),
                         ),
-                        controller: TextEditingController(
-                          text: emiNotifier.units.toString(),
-                        ),
-                        onChanged: (value) {
-                          final units = int.tryParse(value) ?? 0;
-                          if (units > 0) {
-                            emiNotifier.updateUnits(units);
-                          }
-                        },
+                        controller: _unitsController,
+                        focusNode: _unitsFocus,
+                        onChanged: _onUnitsChanged,
                       ),
                     ),
                     const SizedBox(height: 6),
@@ -521,243 +603,6 @@ class DecimalInputFormatter extends TextInputFormatter {
       return newValue;
     }
     return oldValue;
-  }
-}
-
-class ModernTextField extends StatefulWidget {
-  final String label;
-  final String hint;
-  final IconData icon;
-  final String? prefix;
-  final String? suffix;
-  final bool isMobile;
-  final String value;
-  final Function(String) onChanged;
-  final String? errorText;
-
-  const ModernTextField({
-    super.key,
-    required this.label,
-    required this.hint,
-    required this.icon,
-    this.prefix,
-    this.suffix,
-    required this.isMobile,
-    required this.value,
-    required this.onChanged,
-    this.errorText,
-  });
-
-  @override
-  State<ModernTextField> createState() => _ModernTextFieldState();
-}
-
-class _ModernTextFieldState extends State<ModernTextField> {
-  late TextEditingController controller;
-  String amountInWords = "";
-
-  bool _isFormatting = false;
-
-  @override
-  void initState() {
-    super.initState();
-    final cleanValue = widget.value.replaceAll(RegExp(r'[^0-9]'), '');
-    final formattedValue = formatIndianNumber(cleanValue);
-    controller = TextEditingController(text: formattedValue);
-    amountInWords = _getWords(widget.value);
-  }
-
-  @override
-  void didUpdateWidget(covariant ModernTextField oldWidget) {
-    super.didUpdateWidget(oldWidget);
-
-    if (!_isFormatting && oldWidget.value != widget.value) {
-      controller.text = widget.value;
-      controller.selection = TextSelection.collapsed(
-        offset: controller.text.length,
-      );
-
-      amountInWords = _getWords(widget.value);
-    }
-  }
-
-  String _getWords(String text) {
-    final clean = text.replaceAll(",", "");
-    final amount = int.tryParse(clean) ?? 0;
-    return convertNumberToWords(amount);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          widget.label,
-          style: GoogleFonts.inter(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-            color: Colors.grey.shade700,
-          ),
-        ),
-        const SizedBox(height: 8),
-
-        TextField(
-          controller: controller,
-          keyboardType: TextInputType.number,
-          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-          onChanged: (raw) {
-            if (_isFormatting) return;
-
-            _isFormatting = true;
-
-            final clean = raw.replaceAll(",", "");
-            final formatted = formatIndianNumber(clean);
-
-            controller.value = TextEditingValue(
-              text: formatted,
-              selection: TextSelection.collapsed(offset: formatted.length),
-            );
-
-            widget.onChanged(clean);
-
-            setState(() {
-              amountInWords = _getWords(formatted);
-            });
-
-            Future.delayed(const Duration(milliseconds: 50), () {
-              _isFormatting = false;
-            });
-          },
-          decoration: InputDecoration(
-            prefixText: widget.prefix,
-            suffixText: widget.suffix,
-            filled: true,
-            fillColor: Colors.grey.shade50,
-            hintText: widget.hint,
-            prefixIcon: Icon(widget.icon),
-            errorText: widget.errorText,
-            errorStyle: GoogleFonts.inter(
-              fontSize: 12,
-              color: Colors.red.shade600,
-            ),
-            errorMaxLines: 2,
-          ),
-        ),
-
-        // ⭐ Amount in words under the field
-        if (controller.text.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 6),
-            child: Text(
-              amountInWords,
-              style: GoogleFonts.inter(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                color: Colors.blueGrey.shade700,
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-
-  String formatIndianNumber(String value) {
-    value = value.replaceAll(",", "");
-    if (value.isEmpty) return "";
-
-    final number = int.tryParse(value);
-    if (number == null) return value;
-
-    String result = "";
-    String numStr = number.toString();
-    int count = 0;
-
-    // last 3 digits
-    for (int i = numStr.length - 1; i >= 0; i--) {
-      result = numStr[i] + result;
-      count++;
-
-      if (count == 3 && i != 0) {
-        result = "," + result;
-      } else if (count > 3 && (count - 3) % 2 == 0 && i != 0) {
-        result = "," + result;
-      }
-    }
-
-    return result;
-  }
-
-  String convertNumberToWords(int number) {
-    if (number == 0) return "Zero Rupees Only";
-
-    final units = [
-      "",
-      "One",
-      "Two",
-      "Three",
-      "Four",
-      "Five",
-      "Six",
-      "Seven",
-      "Eight",
-      "Nine",
-      "Ten",
-      "Eleven",
-      "Twelve",
-      "Thirteen",
-      "Fourteen",
-      "Fifteen",
-      "Sixteen",
-      "Seventeen",
-      "Eighteen",
-      "Nineteen",
-    ];
-
-    final tens = [
-      "",
-      "",
-      "Twenty",
-      "Thirty",
-      "Forty",
-      "Fifty",
-      "Sixty",
-      "Seventy",
-      "Eighty",
-      "Ninety",
-    ];
-
-    String twoDigit(int n) {
-      if (n < 20) return units[n];
-      return tens[n ~/ 10] + (n % 10 != 0 ? " " + units[n % 10] : "");
-    }
-
-    String threeDigit(int n) {
-      if (n < 100) return twoDigit(n);
-      return units[n ~/ 100] +
-          " Hundred" +
-          (n % 100 != 0 ? " and ${twoDigit(n % 100)}" : "");
-    }
-
-    String words = "";
-
-    if (number >= 10000000) {
-      words += "${twoDigit(number ~/ 10000000)} Crore ";
-      number %= 10000000;
-    }
-    if (number >= 100000) {
-      words += "${twoDigit(number ~/ 100000)} Lakh ";
-      number %= 100000;
-    }
-    if (number >= 1000) {
-      words += "${twoDigit(number ~/ 1000)} Thousand ";
-      number %= 1000;
-    }
-    if (number > 0) {
-      words += threeDigit(number);
-    }
-
-    return "$words Rupees Only";
   }
 }
 

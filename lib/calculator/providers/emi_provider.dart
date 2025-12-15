@@ -149,6 +149,7 @@ class EmiNotifier extends ChangeNotifier {
 
   void updateUnits(int units) {
     _state = _state.copyWith(units: units);
+    _calculate();
     notifyListeners();
   }
 
