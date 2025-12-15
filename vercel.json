@@ -1,11 +1,8 @@
 {
-    "rewrites": [
+    "routes": [
         {
-            "source": "/(.*)",
-            "destination": "/index.html"
+            "src": "/(.*)",
+            "dest": "/index.html"
         }
-    ],
-    "static": {
-        "public": "build/web"
-    }
+    ]
 }
