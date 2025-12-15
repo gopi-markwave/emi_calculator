@@ -44,7 +44,7 @@ class HeaderWidget extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Calculate Your EMI',
+                  'Crowd Farming Investment',
                   style: GoogleFonts.inter(
                     fontSize: isMobile ? 20 : 24,
                     fontWeight: FontWeight.w700,

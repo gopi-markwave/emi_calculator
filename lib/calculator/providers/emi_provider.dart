@@ -125,20 +125,13 @@ class EmiNotifier extends ChangeNotifier {
   //       UPDATE METHODS
   // -----------------------------
   void updateAmount(double amount) {
-    if (amount < minLoanAmount) {
-      _state = _state.copyWith(
-        hasAmountError: true,
-        amountErrorMessage:
-            'Minimum loan amount is ${minLoanAmount.toStringAsFixed(0)}',
-      );
-    } else {
-      _state = _state.copyWith(
-        amount: amount,
-        hasAmountError: false,
-        amountErrorMessage: null,
-      );
-      _calculate();
-    }
+    // Always update amount and calculate, removing minimum restriction
+    _state = _state.copyWith(
+      amount: amount,
+      hasAmountError: false,
+      amountErrorMessage: null,
+    );
+    _calculate();
     notifyListeners();
   }
 
@@ -539,20 +532,20 @@ class EmiNotifier extends ChangeNotifier {
   Future<void> exportSchedule({required bool isYearly}) async {
     final scheduleToExport = isYearly ? yearlySchedule : schedule;
 
-    // Map data for export
+    // Map data for export matching EXACTLY the table columns and order
     final List<Map<String, dynamic>> data = scheduleToExport.map((row) {
       return {
         isYearly ? 'Year' : 'Month': row.month,
-        isYearly ? 'Total Payment' : 'Monthly Payment': row.emi + row.cpf,
-        'EMI': row.emi,
-        isYearly ? 'Total CPF' : 'Monthly CPF': row.cpf,
-        'Revenue': row.revenue,
-        'Principal': row.principal,
-        'Interest': row.interest,
-        'Balance': row.balance,
-        'Profit': row.profit,
-        'From Pocket': row.loss,
-        'Net Cash': row.profit - row.loss,
+        isYearly ? 'EMI (Yearly)' : 'EMI (Monthly)': row.emi.round(),
+        isYearly ? 'CPF (Yearly)' : 'CPF (Monthly)': row.cpf.round(),
+        'Revenue': row.revenue.round(),
+        'Repayment': (row.emi + row.cpf).round(),
+        'Debit From Balance': (row.emiFromLoanPool + row.cpfFromLoanPool)
+            .round(),
+        'Balance': row.loanPoolBalance.round(),
+        'Profit': row.profit.round(),
+        'From Pocket': row.loss.round(),
+        'Net Cash': (row.profit - row.loss).round(),
       };
     }).toList();
 

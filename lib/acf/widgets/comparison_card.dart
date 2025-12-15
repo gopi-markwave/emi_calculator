@@ -2,7 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class ComparisonCard extends StatelessWidget {
-  const ComparisonCard({super.key});
+  final int units;
+
+  const ComparisonCard({super.key, required this.units});
+
+  String _formatCurrency(double value) {
+    return '₹${value.toInt().toString().replaceAllMapped(RegExp(r'(\d+?)(?=(\d\d)+(\d)(?!\d))(\.\d+)?'), (Match m) => '${m[1]},')}';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -39,23 +45,18 @@ class ComparisonCard extends StatelessWidget {
           features: [
             ComparisonFeature(
               label: 'Asset Value',
-              value: '₹3,50,000',
+              value: _formatCurrency(350000.0 * units),
               isAvailable: true,
             ),
             ComparisonFeature(
-              label: 'Discount',
-              value: '₹50,000',
+              label: 'Pricing',
+              value: _formatCurrency(350000.0 * units),
               isAvailable: false,
             ),
-            // ComparisonFeature(
-            //   label: 'Buffaloes per Unit',
-            //   value: '1 Adult',
-            //   isAvailable: true,
-            // ),
             ComparisonFeature(
-              label: '1 CPF Free',
-              value: '₹13,000 (1 buffalo)',
-              isAvailable: true,
+              label: 'CPF',
+              value: _formatCurrency(13000.0 * units),
+              isAvailable: false,
             ),
             ComparisonFeature(
               label: 'Pre-Closure Charge',
@@ -71,24 +72,18 @@ class ComparisonCard extends StatelessWidget {
           features: [
             ComparisonFeature(
               label: 'Asset Value',
-              value: '₹3,50,000',
+              value: _formatCurrency(350000.0 * units),
               isAvailable: true,
             ),
             ComparisonFeature(
-              label: 'Discount',
-              value: '₹50,000',
+              label: 'Pricing',
+              value: _formatCurrency(300000.0 * units),
               isAvailable: true,
               isHighlight: true,
             ),
-            // ComparisonFeature(
-            //   label: 'Buffaloes per Unit',
-            //   value: '2 Adults',
-            //   isAvailable: true,
-            //   isHighlight: true,
-            // ),
             ComparisonFeature(
-              label: '2 CPF Free',
-              value: '₹26,000 (2 buffaloes)',
+              label: 'CPF',
+              value: _formatCurrency(26000.0 * units),
               isAvailable: true,
               isHighlight: true,
             ),
@@ -114,23 +109,18 @@ class ComparisonCard extends StatelessWidget {
             features: [
               ComparisonFeature(
                 label: 'Asset Value',
-                value: '₹3,50,000',
+                value: _formatCurrency(350000.0 * units),
                 isAvailable: true,
               ),
               ComparisonFeature(
-                label: 'Discount',
-                value: '₹50,000',
+                label: 'Pricing',
+                value: _formatCurrency(350000.0 * units),
                 isAvailable: false,
               ),
-              // ComparisonFeature(
-              //   label: 'Buffaloes per Unit',
-              //   value: '1 Adult',
-              //   isAvailable: true,
-              // ),
               ComparisonFeature(
-                label: '1 CPF Free',
-                value: '₹13,000 (1 buffalo)',
-                isAvailable: true,
+                label: 'CPF',
+                value: _formatCurrency(13000.0 * units),
+                isAvailable: false,
               ),
               ComparisonFeature(
                 label: 'Pre-Closure Charge',
@@ -148,24 +138,18 @@ class ComparisonCard extends StatelessWidget {
             features: [
               ComparisonFeature(
                 label: 'Asset Value',
-                value: '₹3,50,000',
+                value: _formatCurrency(350000.0 * units),
                 isAvailable: true,
               ),
               ComparisonFeature(
-                label: 'Discount',
-                value: '₹50,000',
+                label: 'Pricing',
+                value: _formatCurrency(300000.0 * units),
                 isAvailable: true,
                 isHighlight: true,
               ),
-              // ComparisonFeature(
-              //   label: 'Buffaloes per Unit',
-              //   value: '2 Adults',
-              //   isAvailable: true,
-              //   isHighlight: true,
-              // ),
               ComparisonFeature(
-                label: '2 CPF Free',
-                value: '₹26,000 (2 buffaloes)',
+                label: 'CPF',
+                value: _formatCurrency(26000.0 * units),
                 isAvailable: true,
                 isHighlight: true,
               ),
@@ -227,27 +211,6 @@ class ComparisonCard extends StatelessWidget {
                     color: isPrimary ? Colors.white : Colors.black87,
                   ),
                 ),
-                // if (isPrimary) ...[
-                //   const SizedBox(width: 8),
-                //   Container(
-                //     padding: const EdgeInsets.symmetric(
-                //       horizontal: 8,
-                //       vertical: 4,
-                //     ),
-                //     decoration: BoxDecoration(
-                //       color: Colors.green,
-                //       borderRadius: BorderRadius.circular(12),
-                //     ),
-                //     child: Text(
-                //       'RECOMMENDED',
-                //       style: GoogleFonts.inter(
-                //         fontSize: 10,
-                //         fontWeight: FontWeight.bold,
-                //         color: Colors.white,
-                //       ),
-                //     ),
-                //   ),
-                // ],
               ],
             ),
           ),
@@ -280,16 +243,18 @@ class ComparisonCard extends StatelessWidget {
                 ? (feature.isHighlight && isPrimary
                       ? Colors.green.withOpacity(0.15)
                       : Colors.green.withOpacity(0.1))
-                : Colors.red.withOpacity(0.1),
+                : Colors.orange.withOpacity(0.1),
             shape: BoxShape.circle,
           ),
           child: Icon(
-            feature.isAvailable ? Icons.check_circle : Icons.cancel,
+            feature.isAvailable
+                ? Icons.check_circle
+                : Icons.priority_high_rounded,
             color: feature.isAvailable
                 ? (feature.isHighlight && isPrimary
                       ? Colors.green.shade700
                       : Colors.green.shade600)
-                : Colors.red.shade400,
+                : Colors.orange,
             size: 20,
           ),
         ),
@@ -337,18 +302,105 @@ class ComparisonCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 4),
-              Text(
-                feature.value,
-                style: GoogleFonts.inter(
-                  fontSize: 13,
-                  color: feature.isAvailable
-                      ? Colors.black54
-                      : Colors.red.shade300,
-                  decoration: feature.isAvailable
-                      ? TextDecoration.none
-                      : TextDecoration.lineThrough,
+              if (feature.label == 'Pricing')
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    RichText(
+                      text: TextSpan(
+                        children: [
+                          TextSpan(
+                            text: '$units × 3,50,000 = ',
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                          if (isPrimary) ...[
+                            TextSpan(
+                              text: _formatCurrency(350000.0 * units),
+                              style: GoogleFonts.inter(
+                                fontSize: 14,
+                                color: Colors.grey.shade500,
+                                decoration: TextDecoration.lineThrough,
+                                decorationColor: Colors.grey.shade500,
+                              ),
+                            ),
+                            const TextSpan(text: '  '),
+                            TextSpan(
+                              text: _formatCurrency(300000.0 * units),
+                              style: GoogleFonts.inter(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.green.shade700,
+                              ),
+                            ),
+                          ] else
+                            TextSpan(
+                              text: _formatCurrency(350000.0 * units),
+                              style: GoogleFonts.inter(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.orange.shade800,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                )
+              else if (feature.label == 'CPF')
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    RichText(
+                      text: TextSpan(
+                        children: [
+                          TextSpan(
+                            text: '$units × 26,000 = ',
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                          TextSpan(
+                            text: _formatCurrency(26000.0 * units),
+                            style: GoogleFonts.inter(
+                              fontSize: 14,
+                              color: Colors.grey.shade500,
+                              decoration: TextDecoration.lineThrough,
+                              decorationColor: Colors.grey.shade500,
+                            ),
+                          ),
+                          const TextSpan(text: '  '),
+                          TextSpan(
+                            text: isPrimary
+                                ? '₹0*'
+                                : _formatCurrency(13000.0 * units),
+                            style: GoogleFonts.inter(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                              color: isPrimary
+                                  ? Colors.green.shade700
+                                  : Colors.orange.shade800,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                )
+              else
+                Text(
+                  feature.value,
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    color: feature.isAvailable
+                        ? Colors.black54
+                        : Colors.orange.shade800,
+                    decoration: TextDecoration.none,
+                  ),
                 ),
-              ),
             ],
           ),
         ),

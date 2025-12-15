@@ -29,7 +29,7 @@ class AcfScreen extends ConsumerWidget {
           const SizedBox(height: 32),
           const AcfScheduleTable(),
           const SizedBox(height: 32),
-          const ComparisonCard(),
+          ComparisonCard(units: acfNotifier.units),
           const SizedBox(height: 32),
           const SizedBox(height: 40),
         ],

@@ -63,7 +63,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
       backgroundColor: Theme.of(context).colorScheme.surface,
       appBar: AppBar(
         title: Text(
-          'CFI Calculator',
+          _currentIndex == 0 ? 'CFI Calculator' : 'ACF Calculator',
           style: GoogleFonts.inter(
             fontWeight: FontWeight.w600,
             fontSize: isMobile ? 20 : 24,
