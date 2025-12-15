@@ -171,7 +171,9 @@ class _AmortizationTableState extends ConsumerState<AmortizationTable> {
               child: ConstrainedBox(
                 constraints: BoxConstraints(minWidth: constraints.maxWidth),
                 child: Container(
-                  width: 1200, // Fixed width to allow horizontal scrolling
+                  width: kIsWeb
+                      ? constraints.maxWidth
+                      : 1200, // Dynamic width for web, fixed for mobile
                   decoration: BoxDecoration(
                     color: Theme.of(context).cardColor,
                     borderRadius: BorderRadius.circular(14),
@@ -198,8 +200,10 @@ class _AmortizationTableState extends ConsumerState<AmortizationTable> {
                       selectionMode: SelectionMode.single,
                       rowHeight: 42,
                       headerRowHeight: 44,
-                      columnWidthMode:
-                          ColumnWidthMode.fill, // Fill available width
+                      columnWidthMode: kIsWeb
+                          ? ColumnWidthMode.fill
+                          : ColumnWidthMode
+                                .none, // Fill for web, fixed widths for mobile
                       gridLinesVisibility: GridLinesVisibility.both,
                       headerGridLinesVisibility: GridLinesVisibility.both,
                       shrinkWrapRows: true,

@@ -105,6 +105,126 @@ class InputCardWidget extends ConsumerWidget {
                 ),
               ],
             ),
+            const SizedBox(height: 16),
+
+            // Loan Breakdown Info
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Theme.of(
+                  context,
+                ).colorScheme.primary.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.primary.withValues(alpha: 0.2),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.info_outline,
+                    size: 20,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Builder(
+                      builder: (context) {
+                        const double unitCost = 350000.0;
+                        const double cpfCost = 13000.0;
+                        final int units = emiNotifier.units;
+                        final bool cpfEnabled = emiNotifier.cpfEnabled;
+
+                        final double totalUnitCost = unitCost * units;
+                        final double totalCpfCost = cpfEnabled
+                            ? (cpfCost * units)
+                            : 0;
+                        final double grandTotal = totalUnitCost + totalCpfCost;
+                        final double surplus = emiNotifier.amount - grandTotal;
+
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text.rich(
+                              TextSpan(
+                                children: [
+                                  TextSpan(
+                                    text:
+                                        '₹${emiNotifier.formatCurrency(grandTotal)}',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                  TextSpan(
+                                    text: ' = ',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 13,
+                                      color: Colors.grey.shade600,
+                                    ),
+                                  ),
+                                  TextSpan(
+                                    text:
+                                        '₹${emiNotifier.formatCurrency(totalUnitCost)}',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                  if (cpfEnabled) ...[
+                                    TextSpan(
+                                      text: ' + ',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 13,
+                                        color: Colors.grey.shade600,
+                                      ),
+                                    ),
+                                    TextSpan(
+                                      text:
+                                          '₹${emiNotifier.formatCurrency(totalCpfCost)}',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w500,
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.primary,
+                                      ),
+                                    ),
+                                    TextSpan(
+                                      text: ' (CPF)',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 11,
+                                        color: Colors.grey.shade600,
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                            if (surplus > 0)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4.0),
+                                child: Text(
+                                  'Additional surplus remaining: ₹${emiNotifier.formatCurrency(surplus)}',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 12,
+                                    color: Colors.green.shade700,
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
 
             // const SizedBox(height: 12),
             // SfSlider(

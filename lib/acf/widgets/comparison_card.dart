@@ -34,7 +34,7 @@ class ComparisonCard extends StatelessWidget {
     return Column(
       children: [
         _buildOptionCard(
-          title: 'EMI Option',
+          title: 'CFI Option',
           isPrimary: false,
           features: [
             ComparisonFeature(
@@ -109,7 +109,7 @@ class ComparisonCard extends StatelessWidget {
       children: [
         Expanded(
           child: _buildOptionCard(
-            title: 'EMI Option',
+            title: 'CFI Option',
             isPrimary: false,
             features: [
               ComparisonFeature(

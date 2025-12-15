@@ -495,7 +495,7 @@ class AcfScreen extends ConsumerWidget {
             context,
             'Free CPF (1st Year)',
             '+ ₹${notifier.formatCurrency(notifier.cpfBenefit)}',
-            '1st year CPF free for both buffaloes (₹13k each). EMI option has only 1 buffalo with 1st year free.',
+            '1st year CPF free for both buffaloes (₹13k each). CFI option has only 1 buffalo with 1st year free.',
           ),
           const Divider(height: 24),
           _buildBenefitRow(
