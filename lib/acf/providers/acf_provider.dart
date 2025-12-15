@@ -13,6 +13,7 @@ class AcfState {
   final int tenureMonths;
   final double marketUnitValue;
   final double cpfYearlyCostPerUnit;
+  final int projectionYear; // Dynamic projection state
 
   const AcfState({
     this.units = 1,
@@ -27,27 +28,26 @@ class AcfState {
     // And `yearlyCpfPerAnimal = 13000`.
     // Unit = 2 buffaloes.
     // So 1 unit CPF = 13k * 2 = 26k per year?
-    // EMI Provider implementation:
-    // `perUnitCpf = 13000.0`. "13,000 first-year CPF... per unit" -> Checks EMI provider logic again?
-    // EMI Provider: "Required capital per unit: ... +13,000 first-year CPF". This implies 13k per UNIT?
-    // But later "yearlyCpfPerAnimal = 13000". This implies 13k per ANIMAL.
-    // Conflicting?
-    // Let's look at EMI Provider logic carefully:
-    // `cpf += monthlyCpfPerAnimal * unitCount;` where `monthlyCpfPerAnimal = 13000/12`.
-    // So if unitCount=1, CPF is 13k/year.
-    // This implies 1 Unit = 1 Animal for CPF purposes in the code?
-    // OR `monthlyCpfPerAnimal` is actually `monthlyCpfPerUnit`?
-    // "Unit = 2 buffaloes".
-    // If 1 unit = 2 buffaloes, and CPF is 13k/animal, then 1 unit = 26k/year.
     // In EMI Provider: `cpf += monthlyCpfPerAnimal * unitCount`. If monthlyCpfPerAnimal is 13k/12, then it's calculating 13k per unit per year.
     // This suggests the code assumes 13k per UNIT per year.
     // I will stick to 13k per UNIT per year for consistency with EMI provider code, unless clarified otherwise.
     // Benefits: "2cpf free".
     // So 2 years * 13,000 = 26,000 saving per unit.
+    this.projectionYear = 3, // Default 3 years
   });
 
-  AcfState copyWith({int? units}) {
-    return AcfState(units: units ?? this.units);
+  AcfState copyWith({int? units, int? projectionYear}) {
+    return AcfState(
+      units: units ?? this.units,
+      projectionYear: projectionYear ?? this.projectionYear,
+      // Keep other defaults or current values (simple copyWith for minimal usage)
+      // Note: Since other fields are constant in this use case, we just re-use defaults or current.
+      // Ideally should copy all.
+      monthlyInstallmentPerUnit: this.monthlyInstallmentPerUnit,
+      tenureMonths: this.tenureMonths,
+      marketUnitValue: this.marketUnitValue,
+      cpfYearlyCostPerUnit: this.cpfYearlyCostPerUnit,
+    );
   }
 }
 
@@ -56,6 +56,7 @@ class AcfNotifier extends ChangeNotifier {
 
   AcfState get state => _state;
   int get units => _state.units;
+  int get projectionYear => _state.projectionYear;
 
   // Constants / Getters
   double get totalInvestment =>
@@ -107,6 +108,12 @@ class AcfNotifier extends ChangeNotifier {
   void updateUnits(int units) {
     if (units < 1) return;
     _state = _state.copyWith(units: units);
+    notifyListeners();
+  }
+
+  void updateProjectionYear(int year) {
+    if (year < 1 || year > 10) return;
+    _state = _state.copyWith(projectionYear: year);
     notifyListeners();
   }
 }

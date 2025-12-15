@@ -68,3 +68,15 @@ class EmiDetails {
     );
   }
 }
+
+class AssetBreakdownItem {
+  final String description;
+  final String calculation;
+  final double value;
+
+  AssetBreakdownItem({
+    required this.description,
+    required this.calculation,
+    required this.value,
+  });
+}

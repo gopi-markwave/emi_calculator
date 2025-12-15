@@ -3,8 +3,13 @@ import 'package:google_fonts/google_fonts.dart';
 
 class ComparisonCard extends StatelessWidget {
   final int units;
+  final double projectedAssetValue;
 
-  const ComparisonCard({super.key, required this.units});
+  const ComparisonCard({
+    super.key,
+    required this.units,
+    required this.projectedAssetValue,
+  });
 
   String _formatCurrency(double value) {
     return '₹${value.toInt().toString().replaceAllMapped(RegExp(r'(\d+?)(?=(\d\d)+(\d)(?!\d))(\.\d+)?'), (Match m) => '${m[1]},')}';
@@ -39,8 +44,9 @@ class ComparisonCard extends StatelessWidget {
   Widget _buildMobileComparison() {
     return Column(
       children: [
+        /*
         _buildOptionCard(
-          title: 'CFI Option',
+          title: 'EMI Option',
           isPrimary: false,
           features: [
             ComparisonFeature(
@@ -66,13 +72,14 @@ class ComparisonCard extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 16),
+        */
         _buildOptionCard(
           title: 'ACF Option',
           isPrimary: true,
           features: [
             ComparisonFeature(
               label: 'Asset Value',
-              value: _formatCurrency(350000.0 * units),
+              value: _formatCurrency(projectedAssetValue),
               isAvailable: true,
             ),
             ComparisonFeature(
@@ -88,10 +95,16 @@ class ComparisonCard extends StatelessWidget {
               isHighlight: true,
             ),
             ComparisonFeature(
-              label: 'Pre-Closure Charge',
-              value: '4% on paid amount',
-              isAvailable: false,
+              label: 'Fixed Rate',
+              value: 'The price is fixed for the complete tenure',
+              isAvailable: true,
+              isHighlight: true,
             ),
+            // ComparisonFeature(
+            //   label: 'Pre-Closure Charge',
+            //   value: '4% on paid amount',
+            //   isAvailable: false,
+            // ),
           ],
         ),
       ],
@@ -102,9 +115,10 @@ class ComparisonCard extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        /*
         Expanded(
           child: _buildOptionCard(
-            title: 'CFI Option',
+            title: 'EMI Option',
             isPrimary: false,
             features: [
               ComparisonFeature(
@@ -131,6 +145,7 @@ class ComparisonCard extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 24),
+        */
         Expanded(
           child: _buildOptionCard(
             title: 'ACF Option',
@@ -138,7 +153,7 @@ class ComparisonCard extends StatelessWidget {
             features: [
               ComparisonFeature(
                 label: 'Asset Value',
-                value: _formatCurrency(350000.0 * units),
+                value: _formatCurrency(projectedAssetValue),
                 isAvailable: true,
               ),
               ComparisonFeature(
@@ -154,9 +169,10 @@ class ComparisonCard extends StatelessWidget {
                 isHighlight: true,
               ),
               ComparisonFeature(
-                label: 'Pre-Closure Charge',
-                value: '4% on paid amount',
-                isAvailable: false,
+                label: 'Fixed Rate',
+                value: 'The Unit price is fixed for the complete tenure',
+                isAvailable: true,
+                isHighlight: true,
               ),
             ],
           ),

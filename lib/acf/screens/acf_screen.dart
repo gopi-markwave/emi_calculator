@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import '../../calculator/providers/emi_provider.dart';
 import '../widgets/acf_schedule_table.dart';
 import '../widgets/comparison_card.dart';
 
@@ -13,8 +14,21 @@ class AcfScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final acfNotifier = ref.watch(acfProvider);
+    final emiNotifier = ref.watch(emiProvider);
     final screenWidth = MediaQuery.of(context).size.width;
     final isMobile = screenWidth < 768;
+
+    // 3) Calculate projected value for ComparisonCard using the SHARED projection year
+    final selectedYear = acfNotifier.projectionYear;
+    final tenureMonths = selectedYear * 12;
+    final offspringAges = emiNotifier.simulateHerd(
+      tenureMonths,
+      acfNotifier.units,
+    );
+    final dynamicProjectedValue = emiNotifier.calculateAssetValueFromSimulation(
+      offspringAges,
+      acfNotifier.units,
+    );
 
     return SingleChildScrollView(
       padding: EdgeInsets.all(isMobile ? 16.0 : 24.0),
@@ -29,8 +43,12 @@ class AcfScreen extends ConsumerWidget {
           const SizedBox(height: 32),
           const AcfScheduleTable(),
           const SizedBox(height: 32),
-          ComparisonCard(units: acfNotifier.units),
-          const SizedBox(height: 32),
+          ComparisonCard(
+            units: acfNotifier.units,
+            projectedAssetValue: dynamicProjectedValue,
+          ),
+          const SizedBox(height: 24),
+          _buildPccNote(context),
           const SizedBox(height: 40),
         ],
       ),
@@ -198,13 +216,10 @@ class AcfScreen extends ConsumerWidget {
               width:
                   (constraints.maxWidth - (crossAxisCount - 1) * 16) /
                   crossAxisCount,
-              child: _buildStatCard(
-                context,
-                title: 'Asset Value',
-                value: notifier.marketAssetValue,
-                subtitle: 'Market value received',
+              child: AssetProjectionCard(
+                units: notifier.units,
+                amount: notifier.totalInvestment,
                 color: const Color(0xFF0891B2), // Teal
-                icon: Icons.diamond,
               ),
             ),
             SizedBox(
@@ -495,7 +510,7 @@ class AcfScreen extends ConsumerWidget {
             context,
             'Free CPF (1st Year)',
             '+ ₹${notifier.formatCurrency(notifier.cpfBenefit)}',
-            '1st year CPF free for both buffaloes (₹13k each). CFI option has only 1 buffalo with 1st year free.',
+            '1st year CPF free for both buffaloes (₹13k each). EMI option has only 1 buffalo with 1st year free.',
           ),
           const Divider(height: 24),
           _buildBenefitRow(
@@ -517,6 +532,7 @@ class AcfScreen extends ConsumerWidget {
     String description, {
     bool isNegative = false,
   }) {
+    // ... items ...
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -553,6 +569,244 @@ class AcfScreen extends ConsumerWidget {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildPccNote(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.orange.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.orange.withOpacity(0.2)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.info_outline, size: 18, color: Colors.orange.shade800),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'Note: A 4% Pre-Closure Charge (PCC) is applicable on the paid amount if the plan is closed before the end of the tenure.',
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                color: Colors.orange.shade900.withOpacity(0.8),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+} // End of AcfScreen
+
+class AssetProjectionCard extends ConsumerWidget {
+  final int units;
+  final double amount;
+  final Color color;
+
+  const AssetProjectionCard({
+    super.key,
+    required this.units,
+    required this.amount,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // 1) Watch providers
+    final acfNotifier = ref.watch(acfProvider);
+    final emiNotifier = ref.watch(emiProvider);
+
+    // 2) Get year from provider
+    final selectedYear = acfNotifier.projectionYear;
+
+    // 3) Calculate projected value locally or use helper
+    final tenureMonths = selectedYear * 12;
+    // Simulate herd for N years
+    final offspringAges = emiNotifier.simulateHerd(tenureMonths, units);
+    // Calculate total value
+    final projectedValue = emiNotifier.calculateAssetValueFromSimulation(
+      offspringAges,
+      units,
+    );
+
+    // Date formatting: "MMM, yyyy"
+    // Assuming start date is "Now"
+    final projectedDate = DateTime.now().add(
+      Duration(days: 365 * selectedYear),
+    );
+    final dateString = DateFormat('MMM, yyyy').format(projectedDate);
+
+    // Calculate total buffalo count for display
+    int offspringCount = 0;
+    for (final age in offspringAges) {
+      if (age > 0) offspringCount++;
+    }
+    final int totalBuffaloes = (units * 2) + offspringCount;
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [color.withOpacity(0.12), color.withOpacity(0.04)],
+        ),
+        border: Border.all(color: color.withOpacity(0.2), width: 1.5),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.15),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [color.withOpacity(0.3), color.withOpacity(0.15)],
+                  ),
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: color.withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Icon(Icons.diamond, color: color, size: 22),
+              ),
+              const Spacer(),
+              // Seamless Forward/Backward Controls
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildNavButton(
+                      icon: Icons.chevron_left,
+                      onTap: selectedYear > 1
+                          ? () => acfNotifier.updateProjectionYear(
+                              selectedYear - 1,
+                            )
+                          : null,
+                      color: color,
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      child: Text(
+                        dateString,
+                        style: GoogleFonts.inter(
+                          fontWeight: FontWeight.w600,
+                          color: color,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                    _buildNavButton(
+                      icon: Icons.chevron_right,
+                      onTap: selectedYear < 10
+                          ? () => acfNotifier.updateProjectionYear(
+                              selectedYear + 1,
+                            )
+                          : null,
+                      color: color,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Text(
+            'Asset Value',
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              color: Colors.black54,
+              fontWeight: FontWeight.w500,
+              letterSpacing: 0.3,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Countup(
+                begin: 0,
+                end: projectedValue,
+                duration: const Duration(milliseconds: 1000),
+                separator: ',',
+                prefix: '₹',
+                style: GoogleFonts.inter(
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                  height: 1.2,
+                ),
+              ),
+              const SizedBox(width: 4),
+              Text(
+                '(Buffaloes - $totalBuffaloes)',
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: color,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.6),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              'Projected Value',
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                color: Colors.black87,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNavButton({
+    required IconData icon,
+    required VoidCallback? onTap,
+    required Color color,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Padding(
+        padding: const EdgeInsets.all(4),
+        child: Icon(
+          icon,
+          size: 18,
+          color: onTap != null ? color : color.withOpacity(0.3),
+        ),
+      ),
     );
   }
 }

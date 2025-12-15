@@ -78,7 +78,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
           // Show nav buttons in actions on desktop/tablet
           if (!isMobile) ...[
             _NavButton(
-              label: 'CFI Option',
+              label: 'EMI Option',
               isSelected: _currentIndex == 0,
               onTap: () => _onTabChanged(0),
             ),
@@ -114,7 +114,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
                     children: [
                       Expanded(
                         child: _NavButton(
-                          label: 'CFI Option',
+                          label: 'EMI Option',
                           isSelected: _currentIndex == 0,
                           onTap: () => _onTabChanged(0),
                         ),

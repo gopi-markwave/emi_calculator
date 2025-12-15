@@ -56,42 +56,159 @@ class EmiNotifier extends ChangeNotifier {
   double get totalAssetValue {
     final int unitCount = _state.units > 0 ? _state.units : 1;
     final int tenureMonths = _state.months;
+    return _calculateAssetValueFromSimulation(
+      _simulateHerd(tenureMonths, unitCount),
+    );
+  }
 
-    double totalValue = 0;
+  /// Returns a detailed breakdown of the asset value for tooltip display.
+  String getAssetBreakdown() {
+    final int unitCount = _state.units > 0 ? _state.units : 1;
+    final int tenureMonths = _state.months;
+    final int mothersCount = unitCount * 2;
 
-    // 1. Original Buffaloes Valuation
-    // We assume they are 60+ months old at end of tenure (or at least > 48).
-    // Logic: 2 buffaloes per unit.
-    // Value = 1,75,000 * 2 * units.
-    totalValue += (175000 * 2 * unitCount);
+    // Run simulation to get ages of all *calves* (and grand-calves)
+    // The simulation returns ages of ALL offspring.
+    // Original mothers are separate constant.
+    final List<int> offspringAges = _simulateHerd(tenureMonths, unitCount);
 
-    // 2. Calves Valuation
-    // We need to re-simulate birth months for both buffaloes.
-    // Buffalo 1: Order Month 1
-    // Buffalo 2: Order Month 7
-    final List<int> birthMonths = [];
+    // Map to track count of buffaloes at each age
+    final Map<int, int> ageCounts = {};
 
-    // Buffalo 1 Calves
-    for (int m = 1; m <= tenureMonths; m += 12) {
-      birthMonths.add(m);
-    }
-    // Buffalo 2 Calves
-    for (int m = 7; m <= tenureMonths; m += 12) {
-      birthMonths.add(m);
-    }
+    // 1. Original Mothers
+    ageCounts[60] = mothersCount;
 
-    // Calculate value for each calf based on age at end of tenure
-    for (final birthMonth in birthMonths) {
-      // Age in months at the end of tenure
-      final int age = (tenureMonths - birthMonth) + 1;
-
-      // Add value for *each unit* (since each unit has this pattern)
+    // 2. Offspring
+    for (final age in offspringAges) {
       if (age > 0) {
-        totalValue += _getValuationForAge(age) * unitCount;
+        ageCounts[age] = (ageCounts[age] ?? 0) + 1;
       }
     }
 
-    return totalValue;
+    // Format output
+    final StringBuffer buffer = StringBuffer();
+    int totalBuffaloes = 0;
+
+    buffer.writeln('Mothers (60+ months): $mothersCount');
+    totalBuffaloes += mothersCount;
+
+    final sortedAges = ageCounts.keys.where((k) => k != 60).toList()
+      ..sort((a, b) => b.compareTo(a));
+
+    if (sortedAges.isNotEmpty) {
+      buffer.writeln('\nOffspring by Age:');
+      for (final age in sortedAges) {
+        final count = ageCounts[age]!;
+        totalBuffaloes += count;
+        buffer.writeln('$age months old: $count');
+      }
+    }
+
+    buffer.writeln('\nTotal Buffaloes: $totalBuffaloes');
+    return buffer.toString().trim();
+  }
+
+  /// Simulates herd growth and returns list of ages of all OFFSPRING at end of tenure.
+  /// Public for use in projections (e.g. ACF Screen).
+  List<int> simulateHerd(int tenureMonths, int unitCount) {
+    return _simulateHerd(tenureMonths, unitCount);
+  }
+
+  /// Calculates total asset value including mothers and offspring from simulated ages.
+  double calculateAssetValueFromSimulation(
+    List<int> offspringAges,
+    int unitCount,
+  ) {
+    double total = 0;
+
+    // 1. Mothers
+    total += (175000 * 2 * unitCount);
+
+    // 2. Offspring
+    for (final age in offspringAges) {
+      if (age > 0) total += _getValuationForAge(age);
+    }
+    return total;
+  }
+
+  // Internal implementation
+  List<int> _simulateHerd(int tenureMonths, int unitCount) {
+    final List<int> offspringAges = [];
+
+    // We simulate per unit and multiply, or simulate all?
+    // Since logic is identical per unit, simulate for 1 unit and duplicate results?
+    // User logic: "1 unit... price...".
+    // 1 Unit has 2 mothers: M1 (Start), M2 (Start).
+    // Let's simulate for 1 unit first.
+
+    // Queue of pending birth events (month of birth)
+    // We iterate months 1 to tenure.
+    // If a birth happens, we check maturity and schedule future births.
+
+    // Initial Birth Schedules for Original Mothers (1 Unit)
+    // Mother 1: 1, 13, 25...
+    // Mother 2: 7, 19, 31...
+
+    final List<int> birthTimeline = [];
+
+    // Add Original Mom Schedules
+    for (int m = 1; m <= tenureMonths; m += 12) birthTimeline.add(m);
+    for (int m = 7; m <= tenureMonths; m += 12) birthTimeline.add(m);
+
+    // Sort birth timeline to process in order (essential for recursion)
+    birthTimeline.sort();
+
+    // We need a dynamic list because new calves add new events.
+    // Using an index loop allows appending to list.
+    for (int i = 0; i < birthTimeline.length; i++) {
+      final int birthMonth = birthTimeline[i];
+
+      // A calf is born at birthMonth.
+      // It consumes no resources? (Assumption).
+      // It matures at Age 36 (Month 37 from birth).
+      // So at month (birthMonth + 37), it gives its first baby.
+
+      // First Calving
+      // Age 36 months -> Birth at 37th month
+      int firstBabyMonth = birthMonth + 37;
+
+      // Generate births for this new calf
+      for (int babyM = firstBabyMonth; babyM <= tenureMonths; babyM += 12) {
+        // Add to timeline so it is processed later (grand-calves)
+        // Insert in order? Or just append and sort?
+        // Since babyM > birthMonth, and we iterate i, appending is fine IF we process fully.
+        // But simple append works because loop limit is dynamic based on length?
+        // for (int i=0; i < list.length; i++) works in Dart if list grows.
+        birthTimeline.add(babyM);
+        // We need to re-sort? check complexity.
+        // Since we just need to ensure we process them, and babyM > current `birthMonth`,
+        // we will eventually reach it if we iterate by index.
+        // Order doesn't strictly matter for *adding* future events, as long as we catch them.
+        // But strict chronological simulation is safer.
+        // Let's just append. Since babyM > current `birthMonth` (i), it will be at index > i.
+        // So it will be picked up.
+      }
+    }
+
+    // Now calc ages for 1 Unit
+    final List<int> singleUnitAges = [];
+    for (final bm in birthTimeline) {
+      if (bm <= tenureMonths) {
+        singleUnitAges.add((tenureMonths - bm) + 1);
+      }
+    }
+
+    // Replicate for all units
+    for (int u = 0; u < unitCount; u++) {
+      offspringAges.addAll(singleUnitAges);
+    }
+
+    return offspringAges;
+  }
+
+  double _calculateAssetValueFromSimulation(List<int> offspringAges) {
+    final int unitCount = _state.units > 0 ? _state.units : 1;
+    return calculateAssetValueFromSimulation(offspringAges, unitCount);
   }
 
   double _getValuationForAge(int age) {
@@ -148,7 +265,11 @@ class EmiNotifier extends ChangeNotifier {
   }
 
   void updateUnits(int units) {
-    _state = _state.copyWith(units: units);
+    // Auto-update loan amount when units change
+    // 1 Unit = 3,50,000 asset value (default loan)
+    final newAmount = 350000.0 * units;
+
+    _state = _state.copyWith(units: units, amount: newAmount);
     _calculate();
     notifyListeners();
   }

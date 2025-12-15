@@ -1,3 +1,4 @@
+import 'package:countup/countup.dart';
 import 'package:emi_calculator/calculator/models/emi_schedule_row.dart';
 import 'package:emi_calculator/calculator/widgets/animated_export_button.dart';
 import 'package:flutter/foundation.dart';
@@ -171,9 +172,9 @@ class _AmortizationTableState extends ConsumerState<AmortizationTable> {
               child: ConstrainedBox(
                 constraints: BoxConstraints(minWidth: constraints.maxWidth),
                 child: Container(
-                  width: kIsWeb
+                  width: !isMobile
                       ? constraints.maxWidth
-                      : 1200, // Dynamic width for web, fixed for mobile
+                      : 1200, // Dynamic width for desktop/tablet, fixed for mobile
                   decoration: BoxDecoration(
                     color: Theme.of(context).cardColor,
                     borderRadius: BorderRadius.circular(14),
@@ -200,10 +201,10 @@ class _AmortizationTableState extends ConsumerState<AmortizationTable> {
                       selectionMode: SelectionMode.single,
                       rowHeight: 42,
                       headerRowHeight: 44,
-                      columnWidthMode: kIsWeb
+                      columnWidthMode: !isMobile
                           ? ColumnWidthMode.fill
                           : ColumnWidthMode
-                                .none, // Fill for web, fixed widths for mobile
+                                .none, // Fill for desktop/tablet, fixed widths for mobile
                       gridLinesVisibility: GridLinesVisibility.both,
                       headerGridLinesVisibility: GridLinesVisibility.both,
                       shrinkWrapRows: true,
@@ -273,37 +274,193 @@ class _AmortizationTableState extends ConsumerState<AmortizationTable> {
               ),
             ),
 
-            // Footer totals for quick overview
-            Padding(
-              padding: const EdgeInsets.only(top: 8.0, left: 8.0, right: 8.0),
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Align(
-                  alignment: Alignment.centerRight,
-                  child: Text(
-                    '${isYearly ? "Yearly Totals" : "Visible Totals"}  |  '
-                    'Payment: ${emiNotifier.formatCurrency(totalPayment)}   '
-                    'EMI: ${emiNotifier.formatCurrency(totalEmi)}   '
-                    'CPF: ${emiNotifier.formatCurrency(totalCpf)}   '
-                    'Revenue: ${emiNotifier.formatCurrency(totalRevenue)}   '
-                    'Profit: ${emiNotifier.formatCurrency(totalProfit)}   '
-                    'From Pocket: ${emiNotifier.formatCurrency(totalLoss)}   '
-                    'Net Cash: ${emiNotifier.formatCurrency(totalNetCash)}',
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey.shade800,
-                    ),
-                  ),
-                ),
-              ),
+            // Pagination Buttons (Moved above totals)
+            if (!isYearly) ...[
+              const SizedBox(height: 24),
+              _buildPaginationButtons(ref),
+            ],
+
+            const SizedBox(height: 24),
+
+            // Redesigned Totals Grid
+            _buildTotalsGrid(
+              context,
+              constraints,
+              emiNotifier,
+              totalPayment,
+              totalEmi,
+              totalCpf,
+              totalRevenue,
+              totalProfit,
+              totalLoss,
+              totalNetCash,
             ),
-            const SizedBox(height: 16),
-            // Pagination only makes sense for Monthly view to avoid huge list
-            if (!isYearly) _buildPaginationButtons(ref),
+            const SizedBox(height: 24),
           ],
         );
       },
+    );
+  }
+
+  Widget _buildTotalsGrid(
+    BuildContext context,
+    BoxConstraints constraints,
+    dynamic notifier,
+    double totalPayment,
+    double totalEmi,
+    double totalCpf,
+    double totalRevenue,
+    double totalProfit,
+    double totalLoss,
+    double totalNetCash,
+  ) {
+    // Responsive Grid
+    int crossAxisCount;
+    if (constraints.maxWidth >= 1100) {
+      crossAxisCount = 4;
+    } else if (constraints.maxWidth >= 800) {
+      crossAxisCount = 3;
+    } else if (constraints.maxWidth >= 550) {
+      crossAxisCount = 2;
+    } else {
+      crossAxisCount = 1;
+    }
+
+    final cardWidth =
+        (constraints.maxWidth - (crossAxisCount - 1) * 16) / crossAxisCount;
+
+    final List<Widget> cards = [
+      _buildTotalCard(
+        title: 'Total Revenue',
+        value: totalRevenue,
+        color: Colors.green,
+        icon: Icons.monetization_on,
+        width: cardWidth,
+      ),
+      _buildTotalCard(
+        title: 'Total Repayment',
+        value: totalPayment,
+        color: Colors.orange,
+        icon: Icons.payment,
+        width: cardWidth,
+      ),
+      _buildTotalCard(
+        title: 'Total EMI',
+        value: totalEmi,
+        color: Colors.purple,
+        icon: Icons.calendar_month,
+        width: cardWidth,
+      ),
+      _buildTotalCard(
+        title: 'Total CPF',
+        value: totalCpf,
+        color: Colors.amber.shade700,
+        icon: Icons.pets,
+        width: cardWidth,
+      ),
+      _buildTotalCard(
+        title: 'Total Profit',
+        value: totalProfit,
+        color: Colors.blue,
+        icon: Icons.trending_up,
+        width: cardWidth,
+      ),
+      _buildTotalCard(
+        title: 'Net Cash',
+        value: totalNetCash,
+        color: totalNetCash >= 0 ? Colors.teal : Colors.red,
+        icon: Icons.account_balance_wallet,
+        width: cardWidth,
+      ),
+      _buildTotalCard(
+        title: 'From Pocket',
+        value: totalLoss,
+        color: Colors.red.shade400,
+        icon: Icons.warning_amber_rounded,
+        width: cardWidth,
+      ),
+    ];
+
+    return Wrap(spacing: 16, runSpacing: 16, children: cards);
+  }
+
+  Widget _buildTotalCard({
+    required String title,
+    required double value,
+    required Color color,
+    required IconData icon,
+    required double width,
+  }) {
+    return Container(
+      width: width,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [color.withOpacity(0.12), color.withOpacity(0.04)],
+        ),
+        border: Border.all(color: color.withOpacity(0.2), width: 1.5),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.15),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [color.withOpacity(0.3), color.withOpacity(0.15)],
+                  ),
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: color.withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Icon(icon, color: color, size: 18),
+              ),
+              const Spacer(),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            title,
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              color: Colors.black54,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Countup(
+            begin: 0,
+            end: value,
+            duration: const Duration(milliseconds: 800),
+            separator: ',',
+            prefix: '₹',
+            style: GoogleFonts.inter(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -319,32 +476,85 @@ class _AmortizationTableState extends ConsumerState<AmortizationTable> {
   }
 
   Widget _buildPaginationButtons(WidgetRef ref) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        _buildPaginationButton(ref, 12, "12 Months"),
-        const SizedBox(width: 10),
-        _buildPaginationButton(ref, 24, "24 Months"),
-        const SizedBox(width: 10),
-        _buildPaginationButton(ref, 1000, "Show All"),
-      ],
+    final limit = ref.watch(emiProvider).paginationLimit;
+
+    // Map limits to indices for the sliding animation
+    int selectedIndex = 0;
+    if (limit == 12)
+      selectedIndex = 0;
+    else if (limit == 24)
+      selectedIndex = 1;
+    else
+      selectedIndex = 2; // Show All (1000)
+
+    return Container(
+      width: 340, // Slightly wider for 3 items
+      height: 44,
+      decoration: BoxDecoration(
+        color: Colors.grey.shade200,
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: Stack(
+        children: [
+          // Sliding White Indicator
+          AnimatedAlign(
+            alignment: Alignment(
+              -1.0 + (selectedIndex * 1.0), // -1 (left), 0 (center), 1 (right)
+              0.0,
+            ),
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeInOut,
+            child: FractionallySizedBox(
+              widthFactor: 0.33,
+              child: Container(
+                margin: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(18),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.08),
+                      blurRadius: 4,
+                      offset: const Offset(0, 1),
+                    ),
+                  ],
+                ),
+                child: const SizedBox.expand(), // Fill height
+              ),
+            ),
+          ),
+          // Clickable Text Labels
+          Row(
+            children: [
+              _buildSegmentedOption(ref, 12, "12 Months", limit == 12),
+              _buildSegmentedOption(ref, 24, "24 Months", limit == 24),
+              _buildSegmentedOption(ref, 1000, "Show All", limit == 1000),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildPaginationButton(WidgetRef ref, int limit, String text) {
-    return ElevatedButton(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: ref.watch(emiProvider).paginationLimit == limit
-            ? Theme.of(ref.context).colorScheme.primary
-            : null,
-      ),
-      onPressed: () => ref.read(emiProvider.notifier).setPaginationLimit(limit),
-      child: Text(
-        text,
-        style: GoogleFonts.inter(
-          color: ref.watch(emiProvider).paginationLimit == limit
-              ? Colors.white
-              : null,
+  Widget _buildSegmentedOption(
+    WidgetRef ref,
+    int limit,
+    String text,
+    bool isSelected,
+  ) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => ref.read(emiProvider.notifier).setPaginationLimit(limit),
+        behavior: HitTestBehavior.opaque,
+        child: Center(
+          child: Text(
+            text,
+            style: GoogleFonts.inter(
+              fontSize: 12, // Slightly smaller text to fit
+              fontWeight: FontWeight.w600,
+              color: isSelected ? Colors.black : Colors.grey.shade600,
+            ),
+          ),
         ),
       ),
     );

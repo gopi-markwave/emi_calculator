@@ -293,6 +293,7 @@ class _QuickStatsWidget extends ConsumerWidget {
               icon: Icons.savings,
               color: Colors.indigo,
               prefix: emiNotifier.currencyFormat.currencySymbol,
+              tooltipText: emiNotifier.getAssetBreakdown(),
             ),
             const SizedBox(height: 12),
             StatItemWidget(
@@ -321,6 +322,7 @@ class StatItemWidget extends StatefulWidget {
   final String suffix;
   final int precision;
   final bool enableConfetti;
+  final String? tooltipText;
 
   const StatItemWidget({
     super.key,
@@ -332,6 +334,7 @@ class StatItemWidget extends StatefulWidget {
     this.suffix = '',
     this.precision = 0,
     this.enableConfetti = false,
+    this.tooltipText,
   });
 
   @override
@@ -363,7 +366,7 @@ class _StatItemWidgetState extends State<StatItemWidget> {
 
   @override
   Widget build(BuildContext context) {
-    return MouseRegion(
+    Widget content = MouseRegion(
       onEnter: (_) => _playConfetti(),
       child: GestureDetector(
         onTap: _playConfetti,
@@ -435,5 +438,22 @@ class _StatItemWidgetState extends State<StatItemWidget> {
         ),
       ),
     );
+
+    if (widget.tooltipText != null && widget.tooltipText!.isNotEmpty) {
+      return Tooltip(
+        message: widget.tooltipText!,
+        padding: const EdgeInsets.all(12),
+        margin: const EdgeInsets.all(12),
+        showDuration: const Duration(seconds: 5),
+        textStyle: GoogleFonts.inter(fontSize: 12, color: Colors.white),
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.9),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: content,
+      );
+    }
+
+    return content;
   }
 }
