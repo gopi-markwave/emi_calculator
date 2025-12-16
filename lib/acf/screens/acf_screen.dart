@@ -233,7 +233,7 @@ class AcfScreen extends ConsumerWidget {
                 context,
                 title: 'Total Investment',
                 value: notifier.totalInvestment,
-                subtitle: '30 months',
+                subtitle: '${notifier.state.tenureMonths} months',
                 color: const Color(0xFF4F46E5), // Indigo
                 icon: Icons.account_balance_wallet,
               ),
@@ -261,7 +261,7 @@ class AcfScreen extends ConsumerWidget {
               child: _buildStatCard(
                 context,
                 title: 'Period',
-                value: 30,
+                value: notifier.state.tenureMonths.toDouble(),
                 subtitle: 'Months Tenure',
                 color: const Color(0xFFF59E0B), // Amber
                 icon: Icons.calendar_month,

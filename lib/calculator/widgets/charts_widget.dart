@@ -47,7 +47,7 @@ class ChartsWidget extends ConsumerWidget {
   }
 }
 
-class PieChartWidget extends StatelessWidget {
+class PieChartWidget extends StatefulWidget {
   final bool isMobile;
   final EmiNotifier emiNotifier;
 
@@ -58,7 +58,15 @@ class PieChartWidget extends StatelessWidget {
   });
 
   @override
+  State<PieChartWidget> createState() => _PieChartWidgetState();
+}
+
+class _PieChartWidgetState extends State<PieChartWidget> {
+  int _touchedIndex = -1;
+
+  @override
   Widget build(BuildContext context) {
+    final emiNotifier = widget.emiNotifier;
     final principal = emiNotifier.amount;
     final interestPercentage = emiNotifier.totalPayment > 0
         ? (emiNotifier.totalInterest / emiNotifier.totalPayment) * 100
@@ -67,12 +75,28 @@ class PieChartWidget extends StatelessWidget {
         ? (principal / emiNotifier.totalPayment) * 100
         : 0;
 
+    // Data for display
+    String centerLabel = 'Total';
+    String centerValue =
+        '₹${emiNotifier.formatCurrency(emiNotifier.totalPayment)}';
+    Color centerColor = Colors.black87;
+
+    if (_touchedIndex == 0) {
+      centerLabel = 'Interest';
+      centerValue = '₹${emiNotifier.formatCurrency(emiNotifier.totalInterest)}';
+      centerColor = Colors.red.shade400;
+    } else if (_touchedIndex == 1) {
+      centerLabel = 'Principal';
+      centerValue = '₹${emiNotifier.formatCurrency(principal)}';
+      centerColor = Colors.blue.shade400;
+    }
+
     return Card(
       elevation: 4,
-      shadowColor: Colors.black.withValues(alpha: 0.1),
+      shadowColor: Colors.black.withOpacity(0.1),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
-        padding: EdgeInsets.all(isMobile ? 16 : 20),
+        padding: EdgeInsets.all(widget.isMobile ? 16 : 20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -85,39 +109,87 @@ class PieChartWidget extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             SizedBox(
-              height: isMobile ? 200 : 250,
-              child: PieChart(
-                PieChartData(
-                  sections: [
-                    PieChartSectionData(
-                      value: emiNotifier.totalInterest,
-                      title: '${interestPercentage.toStringAsFixed(1)}%',
-                      color: Colors.red.shade400,
-                      titleStyle: GoogleFonts.inter(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                        fontSize: isMobile ? 10 : 12,
+              height: widget.isMobile ? 200 : 250,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  // Center Text
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        centerLabel,
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: Colors.grey.shade600,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
-                      radius: isMobile ? 50 : 60,
-                      titlePositionPercentageOffset: 0.6,
-                    ),
-                    PieChartSectionData(
-                      value: principal,
-                      title: '${principalPercentage.toStringAsFixed(1)}%',
-                      color: Colors.blue.shade400,
-                      titleStyle: GoogleFonts.inter(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                        fontSize: isMobile ? 10 : 12,
+                      Text(
+                        centerValue,
+                        style: GoogleFonts.inter(
+                          fontSize: 14, // slightly smaller to fit
+                          color: centerColor,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                      radius: isMobile ? 50 : 60,
-                      titlePositionPercentageOffset: 0.6,
+                    ],
+                  ),
+                  // The Chart
+                  PieChart(
+                    PieChartData(
+                      pieTouchData: PieTouchData(
+                        touchCallback: (FlTouchEvent event, pieTouchResponse) {
+                          setState(() {
+                            if (!event.isInterestedForInteractions ||
+                                pieTouchResponse == null ||
+                                pieTouchResponse.touchedSection == null) {
+                              _touchedIndex = -1;
+                              return;
+                            }
+                            _touchedIndex = pieTouchResponse
+                                .touchedSection!
+                                .touchedSectionIndex;
+                          });
+                        },
+                      ),
+                      sections: [
+                        PieChartSectionData(
+                          value: emiNotifier.totalInterest,
+                          title: '${interestPercentage.toStringAsFixed(1)}%',
+                          color: Colors.red.shade400,
+                          titleStyle: GoogleFonts.inter(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                            fontSize: widget.isMobile ? 10 : 12,
+                          ),
+                          radius: _touchedIndex == 0
+                              ? (widget.isMobile ? 55 : 65)
+                              : (widget.isMobile ? 50 : 60),
+                          titlePositionPercentageOffset: 0.6,
+                        ),
+                        PieChartSectionData(
+                          value: principal,
+                          title: '${principalPercentage.toStringAsFixed(1)}%',
+                          color: Colors.blue.shade400,
+                          titleStyle: GoogleFonts.inter(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                            fontSize: widget.isMobile ? 10 : 12,
+                          ),
+                          radius: _touchedIndex == 1
+                              ? (widget.isMobile ? 55 : 65)
+                              : (widget.isMobile ? 50 : 60),
+                          titlePositionPercentageOffset: 0.6,
+                        ),
+                      ],
+                      sectionsSpace: 2,
+                      centerSpaceRadius: widget.isMobile ? 40 : 60,
+                      centerSpaceColor:
+                          Colors.transparent, // Transparent for Stack text
                     ),
-                  ],
-                  sectionsSpace: 2,
-                  centerSpaceRadius: isMobile ? 40 : 60,
-                  centerSpaceColor: Colors.grey.shade50,
-                ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 16),
@@ -193,6 +265,13 @@ class BarChartWidget extends StatelessWidget {
     required this.emiNotifier,
   });
 
+  String _compactFormat(double value) {
+    if (value >= 10000000) return '${(value / 10000000).toStringAsFixed(1)}Cr';
+    if (value >= 100000) return '${(value / 100000).toStringAsFixed(1)}L';
+    if (value >= 1000) return '${(value / 1000).toStringAsFixed(0)}k';
+    return value.toInt().toString();
+  }
+
   @override
   Widget build(BuildContext context) {
     final yearlyTotals = _yearlyTotals();
@@ -223,7 +302,7 @@ class BarChartWidget extends StatelessWidget {
               height: isMobile ? 280 : 260,
               child: BarChart(
                 BarChartData(
-                  maxY: maxYValue * 1.2, // FIXED maxY
+                  maxY: maxYValue * 1.2,
                   alignment: BarChartAlignment.spaceAround,
                   borderData: FlBorderData(show: false),
 
@@ -233,10 +312,13 @@ class BarChartWidget extends StatelessWidget {
                     leftTitles: AxisTitles(
                       sideTitles: SideTitles(
                         showTitles: true,
-                        reservedSize: 36,
+                        reservedSize: 40, // Increased reserved size
                         getTitlesWidget: (value, _) => Text(
-                          value.toInt().toString(),
-                          style: TextStyle(fontSize: 10, color: Colors.grey),
+                          _compactFormat(value),
+                          style: const TextStyle(
+                            fontSize: 10,
+                            color: Colors.grey,
+                          ),
                         ),
                       ),
                     ),
@@ -246,7 +328,7 @@ class BarChartWidget extends StatelessWidget {
                         reservedSize: 28,
                         getTitlesWidget: (value, _) => Text(
                           'Y${value.toInt() + 1}',
-                          style: TextStyle(fontSize: 11),
+                          style: const TextStyle(fontSize: 11),
                         ),
                       ),
                     ),
