@@ -296,7 +296,7 @@ class _QuickStatsWidget extends ConsumerWidget {
               color: Colors.indigo,
               // prefix: emiNotifier.currencyFormat.currencySymbol,
               prefix: '₹',
-              tooltipText: emiNotifier.getAssetBreakdown(),
+              // tooltipText: emiNotifier.getAssetBreakdown(),
             ),
             const SizedBox(height: 12),
             StatItemWidget(
