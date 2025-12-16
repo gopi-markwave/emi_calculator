@@ -9,7 +9,6 @@ final acfProvider = ChangeNotifierProvider<AcfNotifier>((ref) {
 
 class AcfState {
   final int units;
-  final double monthlyInstallmentPerUnit;
   final int tenureMonths;
   final double marketUnitValue;
   final double cpfYearlyCostPerUnit;
@@ -17,34 +16,17 @@ class AcfState {
 
   const AcfState({
     this.units = 1,
-    this.monthlyInstallmentPerUnit = 10000,
     this.tenureMonths = 30,
     this.marketUnitValue = 350000,
-    this.cpfYearlyCostPerUnit = 26000, // 13k * 2 animals per unit approx?
-    // Wait, let's verify CPF cost. In EMI provider:
-    // "13,000 first-year CPF (prepaid upfront)" per unit.
-    // "CPF is an every-year charge per animal." -> 13k per animal?
-    // EMI Provider says: `perUnitCpf = 13000.0` (for first year).
-    // And `yearlyCpfPerAnimal = 13000`.
-    // Unit = 2 buffaloes.
-    // So 1 unit CPF = 13k * 2 = 26k per year?
-    // In EMI Provider: `cpf += monthlyCpfPerAnimal * unitCount`. If monthlyCpfPerAnimal is 13k/12, then it's calculating 13k per unit per year.
-    // This suggests the code assumes 13k per UNIT per year.
-    // I will stick to 13k per UNIT per year for consistency with EMI provider code, unless clarified otherwise.
-    // Benefits: "2cpf free".
-    // So 2 years * 13,000 = 26,000 saving per unit.
+    this.cpfYearlyCostPerUnit = 26000,
     this.projectionYear = 3, // Default 3 years
   });
 
-  AcfState copyWith({int? units, int? projectionYear}) {
+  AcfState copyWith({int? units, int? projectionYear, int? tenureMonths}) {
     return AcfState(
       units: units ?? this.units,
       projectionYear: projectionYear ?? this.projectionYear,
-      // Keep other defaults or current values (simple copyWith for minimal usage)
-      // Note: Since other fields are constant in this use case, we just re-use defaults or current.
-      // Ideally should copy all.
-      monthlyInstallmentPerUnit: this.monthlyInstallmentPerUnit,
-      tenureMonths: this.tenureMonths,
+      tenureMonths: tenureMonths ?? this.tenureMonths,
       marketUnitValue: this.marketUnitValue,
       cpfYearlyCostPerUnit: this.cpfYearlyCostPerUnit,
     );
@@ -59,26 +41,32 @@ class AcfNotifier extends ChangeNotifier {
   int get projectionYear => _state.projectionYear;
 
   // Constants / Getters
+  double get monthlyInstallmentPerUnit {
+    return _state.tenureMonths == 11 ? 30000.0 : 10000.0;
+  }
+
   double get totalInvestment =>
-      _state.units * _state.monthlyInstallmentPerUnit * _state.tenureMonths;
+      _state.units * monthlyInstallmentPerUnit * _state.tenureMonths;
 
   double get marketAssetValue => _state.units * _state.marketUnitValue;
 
   double get directDiscount => marketAssetValue - totalInvestment;
 
-  // CPF Benefit: Free for the initial year for 2 buffaloes.
-  // User explains: Buf 1 free until Jan (1 yr), Buf 2 free until July (1 yr from arrival?).
-  // Effectively 1 year free CPF per animal.
-  // 1 Unit = 2 Buffaloes.
-  // Benefit = 13,000 * 2 = 26,000 per unit.
-  double get cpfBenefit => _state.units * 13000 * 2;
+  // CPF Benefit:
+  // 30 Months: 2 buffaloes free for 1 year (13k * 2 = 26k per unit)
+  // 11 Months: 1 buffalo free for 1 year (13k * 1 = 13k per unit)
+  double get cpfBenefit {
+    final perCpfValue = 13000.0;
+    final benefitMultiplier = _state.tenureMonths == 11 ? 1 : 2;
+    return _state.units * perCpfValue * benefitMultiplier;
+  }
 
   double get totalBenefit => directDiscount + cpfBenefit;
 
   List<AcfScheduleRow> get schedule {
     final List<AcfScheduleRow> rows = [];
     double cumulative = 0;
-    final monthlyPayment = _state.units * _state.monthlyInstallmentPerUnit;
+    final monthlyPayment = _state.units * monthlyInstallmentPerUnit;
 
     for (int i = 1; i <= _state.tenureMonths; i++) {
       cumulative += monthlyPayment;
@@ -108,6 +96,11 @@ class AcfNotifier extends ChangeNotifier {
   void updateUnits(int units) {
     if (units < 1) return;
     _state = _state.copyWith(units: units);
+    notifyListeners();
+  }
+
+  void updateTenureMonths(int months) {
+    _state = _state.copyWith(tenureMonths: months);
     notifyListeners();
   }
 

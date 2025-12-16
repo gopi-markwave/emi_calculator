@@ -1,4 +1,4 @@
-import 'package:countup/countup.dart';
+import 'package:emi_calculator/calculator/widgets/animated_indian_currency.dart';
 import 'package:emi_calculator/calculator/models/emi_schedule_row.dart';
 import 'package:emi_calculator/calculator/widgets/animated_export_button.dart';
 import 'package:flutter/foundation.dart';
@@ -334,11 +334,11 @@ class _AmortizationTableState extends ConsumerState<AmortizationTable> {
         title: 'Total Revenue',
         value: totalRevenue,
         color: Colors.green,
-        icon: Icons.monetization_on,
+        icon: Icons.money,
         width: cardWidth,
       ),
       _buildTotalCard(
-        title: 'Total Repayment',
+        title: 'Total Payment',
         value: totalPayment,
         color: Colors.orange,
         icon: Icons.payment,
@@ -366,6 +366,13 @@ class _AmortizationTableState extends ConsumerState<AmortizationTable> {
         width: cardWidth,
       ),
       _buildTotalCard(
+        title: 'From Pocket',
+        value: totalLoss,
+        color: Colors.red.shade400,
+        icon: Icons.warning_amber_rounded,
+        width: cardWidth,
+      ),
+      _buildTotalCard(
         title: 'Net Cash',
         value: totalNetCash,
         color: totalNetCash >= 0 ? Colors.teal : Colors.red,
@@ -373,10 +380,10 @@ class _AmortizationTableState extends ConsumerState<AmortizationTable> {
         width: cardWidth,
       ),
       _buildTotalCard(
-        title: 'From Pocket',
-        value: totalLoss,
-        color: Colors.red.shade400,
-        icon: Icons.warning_amber_rounded,
+        title: 'Asset Value',
+        value: notifier.totalAssetValue,
+        color: Colors.indigo,
+        icon: Icons.savings,
         width: cardWidth,
       ),
     ];
@@ -447,11 +454,9 @@ class _AmortizationTableState extends ConsumerState<AmortizationTable> {
             ),
           ),
           const SizedBox(height: 4),
-          Countup(
-            begin: 0,
-            end: value,
-            duration: const Duration(milliseconds: 800),
-            separator: ',',
+          const SizedBox(height: 4),
+          AnimatedIndianCurrency(
+            value: value,
             prefix: '₹',
             style: GoogleFonts.inter(
               fontSize: 18,

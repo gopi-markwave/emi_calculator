@@ -4,11 +4,17 @@ import 'package:google_fonts/google_fonts.dart';
 class ComparisonCard extends StatelessWidget {
   final int units;
   final double projectedAssetValue;
+  final double totalInvestment;
+  final double cpfBenefit;
+  final int tenureMonths;
 
   const ComparisonCard({
     super.key,
     required this.units,
     required this.projectedAssetValue,
+    required this.totalInvestment,
+    required this.cpfBenefit,
+    required this.tenureMonths,
   });
 
   String _formatCurrency(double value) {
@@ -44,35 +50,6 @@ class ComparisonCard extends StatelessWidget {
   Widget _buildMobileComparison() {
     return Column(
       children: [
-        /*
-        _buildOptionCard(
-          title: 'EMI Option',
-          isPrimary: false,
-          features: [
-            ComparisonFeature(
-              label: 'Asset Value',
-              value: _formatCurrency(350000.0 * units),
-              isAvailable: true,
-            ),
-            ComparisonFeature(
-              label: 'Pricing',
-              value: _formatCurrency(350000.0 * units),
-              isAvailable: false,
-            ),
-            ComparisonFeature(
-              label: 'CPF',
-              value: _formatCurrency(13000.0 * units),
-              isAvailable: false,
-            ),
-            ComparisonFeature(
-              label: 'Pre-Closure Charge',
-              value: 'None',
-              isAvailable: true,
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        */
         _buildOptionCard(
           title: 'ACF Option',
           isPrimary: true,
@@ -84,27 +61,22 @@ class ComparisonCard extends StatelessWidget {
             ),
             ComparisonFeature(
               label: 'Pricing',
-              value: _formatCurrency(300000.0 * units),
+              value: _formatCurrency(totalInvestment),
               isAvailable: true,
               isHighlight: true,
             ),
             ComparisonFeature(
               label: 'CPF',
-              value: _formatCurrency(26000.0 * units),
+              value: _formatCurrency(cpfBenefit),
               isAvailable: true,
               isHighlight: true,
             ),
             ComparisonFeature(
               label: 'Fixed Rate',
-              value: 'The price is fixed for the complete tenure',
+              value: 'The Unit price is fixed for the complete tenure',
               isAvailable: true,
               isHighlight: true,
             ),
-            // ComparisonFeature(
-            //   label: 'Pre-Closure Charge',
-            //   value: '4% on paid amount',
-            //   isAvailable: false,
-            // ),
           ],
         ),
       ],
@@ -115,37 +87,6 @@ class ComparisonCard extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        /*
-        Expanded(
-          child: _buildOptionCard(
-            title: 'EMI Option',
-            isPrimary: false,
-            features: [
-              ComparisonFeature(
-                label: 'Asset Value',
-                value: _formatCurrency(350000.0 * units),
-                isAvailable: true,
-              ),
-              ComparisonFeature(
-                label: 'Pricing',
-                value: _formatCurrency(350000.0 * units),
-                isAvailable: false,
-              ),
-              ComparisonFeature(
-                label: 'CPF',
-                value: _formatCurrency(13000.0 * units),
-                isAvailable: false,
-              ),
-              ComparisonFeature(
-                label: 'Pre-Closure Charge',
-                value: 'None',
-                isAvailable: true,
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 24),
-        */
         Expanded(
           child: _buildOptionCard(
             title: 'ACF Option',
@@ -158,13 +99,13 @@ class ComparisonCard extends StatelessWidget {
               ),
               ComparisonFeature(
                 label: 'Pricing',
-                value: _formatCurrency(300000.0 * units),
+                value: _formatCurrency(totalInvestment),
                 isAvailable: true,
                 isHighlight: true,
               ),
               ComparisonFeature(
                 label: 'CPF',
-                value: _formatCurrency(26000.0 * units),
+                value: _formatCurrency(cpfBenefit),
                 isAvailable: true,
                 isHighlight: true,
               ),
@@ -325,13 +266,6 @@ class ComparisonCard extends StatelessWidget {
                     RichText(
                       text: TextSpan(
                         children: [
-                          TextSpan(
-                            text: '$units × 3,50,000 = ',
-                            style: GoogleFonts.inter(
-                              fontSize: 13,
-                              color: Colors.grey.shade600,
-                            ),
-                          ),
                           if (isPrimary) ...[
                             TextSpan(
                               text: _formatCurrency(350000.0 * units),
@@ -344,22 +278,14 @@ class ComparisonCard extends StatelessWidget {
                             ),
                             const TextSpan(text: '  '),
                             TextSpan(
-                              text: _formatCurrency(300000.0 * units),
+                              text: _formatCurrency(totalInvestment),
                               style: GoogleFonts.inter(
                                 fontSize: 18,
                                 fontWeight: FontWeight.w800,
                                 color: Colors.green.shade700,
                               ),
                             ),
-                          ] else
-                            TextSpan(
-                              text: _formatCurrency(350000.0 * units),
-                              style: GoogleFonts.inter(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w800,
-                                color: Colors.orange.shade800,
-                              ),
-                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -373,14 +299,16 @@ class ComparisonCard extends StatelessWidget {
                       text: TextSpan(
                         children: [
                           TextSpan(
-                            text: '$units × 26,000 = ',
+                            text: tenureMonths == 30
+                                ? '$units × 26,000 = '
+                                : '$units × 13,000 = ',
                             style: GoogleFonts.inter(
                               fontSize: 13,
                               color: Colors.grey.shade600,
                             ),
                           ),
                           TextSpan(
-                            text: _formatCurrency(26000.0 * units),
+                            text: _formatCurrency(cpfBenefit),
                             style: GoogleFonts.inter(
                               fontSize: 14,
                               color: Colors.grey.shade500,
@@ -390,15 +318,11 @@ class ComparisonCard extends StatelessWidget {
                           ),
                           const TextSpan(text: '  '),
                           TextSpan(
-                            text: isPrimary
-                                ? '₹0*'
-                                : _formatCurrency(13000.0 * units),
+                            text: '₹0*',
                             style: GoogleFonts.inter(
                               fontSize: 18,
                               fontWeight: FontWeight.w800,
-                              color: isPrimary
-                                  ? Colors.green.shade700
-                                  : Colors.orange.shade800,
+                              color: Colors.green.shade700,
                             ),
                           ),
                         ],

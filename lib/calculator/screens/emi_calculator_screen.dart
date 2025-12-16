@@ -1,5 +1,5 @@
 import 'package:confetti/confetti.dart';
-import 'package:countup/countup.dart';
+import 'package:emi_calculator/calculator/widgets/animated_indian_currency.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -283,7 +283,8 @@ class _QuickStatsWidget extends ConsumerWidget {
               value: emiNotifier.totalNetCash,
               icon: Icons.account_balance_wallet,
               color: emiNotifier.totalNetCash >= 0 ? Colors.green : Colors.red,
-              prefix: emiNotifier.currencyFormat.currencySymbol,
+              // prefix: emiNotifier.currencyFormat.currencySymbol,
+              prefix: '₹',
               enableConfetti: true,
             ),
             const SizedBox(height: 12),
@@ -291,20 +292,25 @@ class _QuickStatsWidget extends ConsumerWidget {
               label: 'Projected Asset Value',
               value: emiNotifier.totalAssetValue,
               icon: Icons.savings,
+
               color: Colors.indigo,
-              prefix: emiNotifier.currencyFormat.currencySymbol,
+              // prefix: emiNotifier.currencyFormat.currencySymbol,
+              prefix: '₹',
               tooltipText: emiNotifier.getAssetBreakdown(),
             ),
             const SizedBox(height: 12),
             StatItemWidget(
-              label: 'Return on Investment (ROI)',
-              value: emiNotifier.amount > 0
-                  ? ((emiNotifier.totalNetCash / emiNotifier.amount) * 100)
-                  : 0.0,
+              label: 'Total Return',
+              value: emiNotifier.totalNetCash + emiNotifier.totalAssetValue,
+              prefix: '₹',
+              precision: 0,
               icon: Icons.percent,
               color: Colors.orange,
-              suffix: '%',
-              precision: 1,
+              secondaryText: emiNotifier.amount > 0
+                  ? 'ROI: ${(((emiNotifier.totalNetCash + emiNotifier.totalAssetValue) / emiNotifier.amount) * 100).toStringAsFixed(1)}%'
+                  : 'ROI: 0.0%',
+              isSecondaryBold: true,
+              tooltipText: 'Combined Return: Net Cash + Asset Value',
             ),
           ],
         ),
@@ -323,6 +329,8 @@ class StatItemWidget extends StatefulWidget {
   final int precision;
   final bool enableConfetti;
   final String? tooltipText;
+  final String? secondaryText;
+  final bool isSecondaryBold;
 
   const StatItemWidget({
     super.key,
@@ -335,6 +343,8 @@ class StatItemWidget extends StatefulWidget {
     this.precision = 0,
     this.enableConfetti = false,
     this.tooltipText,
+    this.secondaryText,
+    this.isSecondaryBold = false,
   });
 
   @override
@@ -394,14 +404,12 @@ class _StatItemWidgetState extends State<StatItemWidget> {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Countup(
-                        begin: 0,
-                        end: widget.value,
+                      AnimatedIndianCurrency(
+                        value: widget.value,
                         duration: const Duration(milliseconds: 1500),
-                        separator: ',',
                         prefix: widget.prefix,
                         suffix: widget.suffix,
-                        precision: widget.precision,
+                        decimalDigits: widget.precision,
                         style: GoogleFonts.inter(
                           fontSize: 18,
                           fontWeight: FontWeight.w600,
@@ -417,6 +425,39 @@ class _StatItemWidgetState extends State<StatItemWidget> {
                           ).colorScheme.onSurface.withOpacity(0.7),
                         ),
                       ),
+                      if (widget.secondaryText != null) ...[
+                        const SizedBox(height: 4),
+                        widget.isSecondaryBold
+                            ? Text(
+                                widget.secondaryText!,
+                                style: GoogleFonts.inter(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w800,
+                                  color: widget.color.withOpacity(0.9),
+                                ),
+                              )
+                            : Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: widget.color.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(
+                                    color: widget.color.withOpacity(0.3),
+                                  ),
+                                ),
+                                child: Text(
+                                  widget.secondaryText!,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: widget.color,
+                                  ),
+                                ),
+                              ),
+                      ],
                     ],
                   ),
                 ],

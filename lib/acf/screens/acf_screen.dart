@@ -1,4 +1,5 @@
-import 'package:countup/countup.dart';
+import 'package:emi_calculator/shared/widgets/nav_button.dart';
+import 'package:emi_calculator/calculator/widgets/animated_indian_currency.dart';
 import 'package:emi_calculator/acf/providers/acf_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -37,6 +38,26 @@ class AcfScreen extends ConsumerWidget {
         children: [
           _buildHeader(context, isMobile),
           const SizedBox(height: 24),
+          // Tenure Selection
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                NavButton(
+                  label: '30 Months',
+                  isSelected: acfNotifier.state.tenureMonths == 30,
+                  onTap: () => acfNotifier.updateTenureMonths(30),
+                ),
+                const SizedBox(width: 12),
+                NavButton(
+                  label: '11 Months',
+                  isSelected: acfNotifier.state.tenureMonths == 11,
+                  onTap: () => acfNotifier.updateTenureMonths(11),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
           _buildInputCard(context, ref, acfNotifier),
           const SizedBox(height: 24),
           _buildStatsGrid(context, acfNotifier, isMobile),
@@ -46,9 +67,14 @@ class AcfScreen extends ConsumerWidget {
           ComparisonCard(
             units: acfNotifier.units,
             projectedAssetValue: dynamicProjectedValue,
+            totalInvestment: acfNotifier.totalInvestment,
+            cpfBenefit: acfNotifier.cpfBenefit,
+            tenureMonths: acfNotifier.state.tenureMonths,
           ),
           const SizedBox(height: 24),
           _buildPccNote(context),
+          const SizedBox(height: 24),
+          _buildRevenueTimeline(context, acfNotifier.state.tenureMonths),
           const SizedBox(height: 40),
         ],
       ),
@@ -139,7 +165,7 @@ class AcfScreen extends ConsumerWidget {
                         ),
                       ),
                       Text(
-                        '₹${notifier.formatCurrency(notifier.units * 10000)}',
+                        '₹${notifier.formatCurrency(notifier.units * notifier.monthlyInstallmentPerUnit)}',
                         style: GoogleFonts.inter(
                           fontSize: 20,
                           fontWeight: FontWeight.w600,
@@ -335,11 +361,9 @@ class AcfScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 6),
-          Countup(
-            begin: 0,
-            end: value,
+          AnimatedIndianCurrency(
+            value: value,
             duration: const Duration(seconds: 1),
-            separator: ',',
             prefix: isCurrency ? '₹' : '',
             suffix: suffix,
             style: GoogleFonts.inter(
@@ -447,11 +471,9 @@ class AcfScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 6),
-          Countup(
-            begin: 0,
-            end: notifier.totalBenefit,
+          AnimatedIndianCurrency(
+            value: notifier.totalBenefit,
             duration: const Duration(seconds: 1),
-            separator: ',',
             prefix: '₹',
             style: GoogleFonts.inter(
               fontSize: 26,
@@ -481,97 +503,6 @@ class AcfScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildBenefitSummary(BuildContext context, AcfNotifier notifier) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Theme.of(context).colorScheme.outline.withOpacity(0.1),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Why choose ACF?',
-            style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 16),
-          _buildBenefitRow(
-            context,
-            'Direct Discount',
-            '+ ₹${notifier.formatCurrency(notifier.directDiscount)}',
-            'You save ₹50,000 per unit on asset cost.',
-          ),
-          const Divider(height: 24),
-          _buildBenefitRow(
-            context,
-            'Free CPF (1st Year)',
-            '+ ₹${notifier.formatCurrency(notifier.cpfBenefit)}',
-            '1st year CPF free for both buffaloes (₹13k each). EMI option has only 1 buffalo with 1st year free.',
-          ),
-          const Divider(height: 24),
-          _buildBenefitRow(
-            context,
-            'Pre-Closure Charge',
-            '4%',
-            'Applicable on paid amount if closed before 30 months.',
-            isNegative: true,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBenefitRow(
-    BuildContext context,
-    String title,
-    String value,
-    String description, {
-    bool isNegative = false,
-  }) {
-    // ... items ...
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: GoogleFonts.inter(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                description,
-                style: GoogleFonts.inter(
-                  fontSize: 13,
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.onSurface.withOpacity(0.6),
-                ),
-              ),
-            ],
-          ),
-        ),
-        Text(
-          value,
-          style: GoogleFonts.inter(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: isNegative ? Colors.red : Colors.green,
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _buildPccNote(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -594,6 +525,212 @@ class AcfScreen extends ConsumerWidget {
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRevenueTimeline(BuildContext context, int tenureMonths) {
+    final isFullTenure = tenureMonths == 30;
+    final steps = isFullTenure
+        ? [
+            {
+              'month': 'Months 1-30',
+              'title': 'Monthly Payments',
+              'desc': 'Regular investment period',
+              'icon': Icons.calendar_today_outlined,
+              'color': Colors.blue,
+            },
+            {
+              'month': 'Month 30',
+              'title': 'Payment Complete',
+              'desc': 'Full investment realized',
+              'icon': Icons.check_circle_outline,
+              'color': Colors.green,
+            },
+            {
+              'month': 'Month 31',
+              'title': 'Revenue Starts',
+              'desc': 'Immediate returns begin',
+              'icon': Icons.money,
+              'color': Colors.orange,
+            },
+          ]
+        : [
+            {
+              'month': 'Months 1-11',
+              'title': 'Monthly Payments',
+              'desc': 'Regular investment period',
+              'icon': Icons.calendar_today_outlined,
+              'color': Colors.blue,
+            },
+            {
+              'month': 'Month 12',
+              'title': 'Buffalo Delivered',
+              'desc': 'Asset physically delivered to farm',
+              'icon': Icons.local_shipping_outlined,
+              'color': Colors.purple,
+            },
+            {
+              'month': 'Month 13',
+              'title': 'Revenue Starts',
+              'desc': 'Returns begin month after delivery',
+              'icon': Icons.money,
+              'color': Colors.orange,
+            },
+          ];
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Theme.of(context).colorScheme.outline.withOpacity(0.1),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.timeline, size: 20, color: Colors.blue),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Revenue Timeline',
+                      style: GoogleFonts.inter(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
+                    ),
+                    Text(
+                      'Key milestones for your investment',
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withOpacity(0.6),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          ...steps.asMap().entries.map((entry) {
+            final index = entry.key;
+            final step = entry.value;
+            final isLast = index == steps.length - 1;
+            final color = step['color'] as Color;
+
+            return IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Column(
+                    children: [
+                      Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: color.withOpacity(0.1),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: color.withOpacity(0.2),
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Icon(
+                          step['icon'] as IconData,
+                          size: 16,
+                          color: color,
+                        ),
+                      ),
+                      if (!isLast)
+                        Expanded(
+                          child: Container(
+                            width: 2,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.outline.withOpacity(0.2),
+                            margin: const EdgeInsets.symmetric(vertical: 4),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: 24.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: color.withOpacity(0.05),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              step['month'] as String,
+                              style: GoogleFonts.inter(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: color,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            step['title'] as String,
+                            style: GoogleFonts.inter(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: Theme.of(context).colorScheme.onSurface,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            step['desc'] as String,
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurface.withOpacity(0.6),
+                              height: 1.4,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
         ],
       ),
     );
@@ -745,17 +882,13 @@ class AssetProjectionCard extends ConsumerWidget {
           const SizedBox(height: 6),
           Row(
             children: [
-              Countup(
-                begin: 0,
-                end: projectedValue,
-                duration: const Duration(milliseconds: 1000),
-                separator: ',',
+              AnimatedIndianCurrency(
+                value: projectedValue,
                 prefix: '₹',
                 style: GoogleFonts.inter(
-                  fontSize: 26,
+                  fontSize: 22,
                   fontWeight: FontWeight.bold,
                   color: color,
-                  height: 1.2,
                 ),
               ),
               const SizedBox(width: 4),

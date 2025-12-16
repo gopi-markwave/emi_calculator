@@ -90,15 +90,27 @@ class _MainScreenState extends ConsumerState<MainScreen> {
             ),
             const SizedBox(width: 24),
           ],
-          IconButton(
-            onPressed: () => themeNotifier.toggleTheme(),
-            icon: Icon(
-              Theme.of(context).brightness == Brightness.dark
-                  ? Icons.light_mode
-                  : Icons.dark_mode,
-              color: Theme.of(context).colorScheme.primary,
+          // Version Number
+          Padding(
+            padding: const EdgeInsets.only(right: 16),
+            child: Text(
+              'v1.0.2',
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
+          // IconButton(
+          //   onPressed: () => themeNotifier.toggleTheme(),
+          //   icon: Icon(
+          //     Theme.of(context).brightness == Brightness.dark
+          //         ? Icons.light_mode
+          //         : Icons.dark_mode,
+          //     color: Theme.of(context).colorScheme.primary,
+          //   ),
+          // ),
           const SizedBox(width: 16),
         ],
         // Show nav buttons below header on mobile

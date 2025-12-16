@@ -54,7 +54,7 @@ class EmiNotifier extends ChangeNotifier {
   /// Calculate total Asset Value at the end of the tenure.
   /// Includes original buffaloes (valued at max) + all grown calves (valued by age).
   double get totalAssetValue {
-    final int unitCount = _state.units > 0 ? _state.units : 1;
+    final int unitCount = _state.units; // Allow 0
     final int tenureMonths = _state.months;
     return _calculateAssetValueFromSimulation(
       _simulateHerd(tenureMonths, unitCount),
@@ -63,7 +63,7 @@ class EmiNotifier extends ChangeNotifier {
 
   /// Returns a detailed breakdown of the asset value for tooltip display.
   String getAssetBreakdown() {
-    final int unitCount = _state.units > 0 ? _state.units : 1;
+    final int unitCount = _state.units; // Allow 0
     final int tenureMonths = _state.months;
     final int mothersCount = unitCount * 2;
 
@@ -207,7 +207,7 @@ class EmiNotifier extends ChangeNotifier {
   }
 
   double _calculateAssetValueFromSimulation(List<int> offspringAges) {
-    final int unitCount = _state.units > 0 ? _state.units : 1;
+    final int unitCount = _state.units; // Allow 0
     return calculateAssetValueFromSimulation(offspringAges, unitCount);
   }
 
@@ -265,11 +265,9 @@ class EmiNotifier extends ChangeNotifier {
   }
 
   void updateUnits(int units) {
-    // Auto-update loan amount when units change
-    // 1 Unit = 3,50,000 asset value (default loan)
-    final newAmount = 350000.0 * units;
-
-    _state = _state.copyWith(units: units, amount: newAmount);
+    // Only update units, do NOT auto-update loan amount.
+    // Loan amount and units are independent.
+    _state = _state.copyWith(units: units);
     _calculate();
     notifyListeners();
   }
@@ -338,7 +336,7 @@ class EmiNotifier extends ChangeNotifier {
     const double perUnitBase = 350000.0;
     const double perUnitCpf = 13000.0;
 
-    final int unitCount = _state.units > 0 ? _state.units : 1;
+    final int unitCount = _state.units; // Allow 0
 
     // Required capital per unit:
     // - 3,50,000 base asset/infrastructure
@@ -444,7 +442,7 @@ class EmiNotifier extends ChangeNotifier {
       // -----------------
       // Revenue modelling (scaled by units)
       // -----------------
-      final int unitCount = _state.units > 0 ? _state.units : 1;
+      final int unitCount = _state.units; // Allow 0
       double revenuePerUnit = 0;
 
       // Buffalo revenue

@@ -1,3 +1,5 @@
+import 'package:emi_calculator/calculator/widgets/indian_number_formatter.dart';
+import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -22,13 +24,14 @@ class _InputCardWidgetState extends ConsumerState<InputCardWidget> {
   final FocusNode _amountFocus = FocusNode();
   final FocusNode _unitsFocus = FocusNode();
   Timer? _debounce;
+  final NumberFormat _formatter = NumberFormat.decimalPattern('en_IN');
 
   @override
   void initState() {
     super.initState();
     final notifier = ref.read(emiProvider);
     _amountController = TextEditingController(
-      text: notifier.amount.toInt().toString(),
+      text: _formatter.format(notifier.amount.toInt()),
     );
     _unitsController = TextEditingController(text: notifier.units.toString());
 
@@ -39,11 +42,9 @@ class _InputCardWidgetState extends ConsumerState<InputCardWidget> {
         final currentAmount =
             double.tryParse(_amountController.text.replaceAll(',', '')) ?? 0;
         if ((currentAmount - ref.read(emiProvider).amount).abs() > 0.1) {
-          _amountController.text = ref
-              .read(emiProvider)
-              .amount
-              .toInt()
-              .toString();
+          _amountController.text = _formatter.format(
+            ref.read(emiProvider).amount.toInt(),
+          );
         }
       }
     });
@@ -81,7 +82,7 @@ class _InputCardWidgetState extends ConsumerState<InputCardWidget> {
     if (_debounce?.isActive ?? false) _debounce!.cancel();
     _debounce = Timer(const Duration(milliseconds: 300), () {
       final units = int.tryParse(value) ?? 0;
-      if (units > 0) ref.read(emiProvider.notifier).updateUnits(units);
+      if (units >= 0) ref.read(emiProvider.notifier).updateUnits(units);
     });
   }
 
@@ -96,7 +97,7 @@ class _InputCardWidgetState extends ConsumerState<InputCardWidget> {
       final currentAmount =
           double.tryParse(_amountController.text.replaceAll(',', '')) ?? 0;
       if ((currentAmount - emiNotifier.amount).abs() > 0.1) {
-        _amountController.text = emiNotifier.amount.toInt().toString();
+        _amountController.text = _formatter.format(emiNotifier.amount.toInt());
       }
     }
 
@@ -148,8 +149,9 @@ class _InputCardWidgetState extends ConsumerState<InputCardWidget> {
             TextFormField(
               inputFormatters: [
                 FilteringTextInputFormatter.digitsOnly,
+                IndianNumberFormatter(),
               ],
-              controller: _amountController,
+              controller: _amountController,  
               focusNode: _amountFocus,
               keyboardType: TextInputType.number,
               decoration: InputDecoration(

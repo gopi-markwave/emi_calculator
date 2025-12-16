@@ -1,4 +1,4 @@
-import 'package:countup/countup.dart';
+import 'package:emi_calculator/calculator/widgets/animated_indian_currency.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -102,22 +102,20 @@ class ResultCardWidget extends ConsumerWidget {
                   //     color: Theme.of(context).colorScheme.primary,
                   //   ),
                   // ),
-                  Countup(
-                    begin: 0,
-                    end:
+                  AnimatedIndianCurrency(
+                    value:
                         emiNotifier.emi +
                         (emiNotifier.cpfEnabled &&
                                 emiNotifier.schedule.isNotEmpty
                             ? emiNotifier.schedule.first.cpf
                             : 0),
+                    prefix: '₹',
                     style: GoogleFonts.inter(
                       fontSize: isMobile ? 28 : 32,
                       fontWeight: FontWeight.w700,
                       color: Theme.of(context).colorScheme.primary,
                     ),
-                    // Format only when displaying
-                    separator: ',',
-                    precision: 2,
+                    decimalDigits: 2,
                   ),
 
                   const SizedBox(height: 6),
