@@ -146,6 +146,9 @@ class _InputCardWidgetState extends ConsumerState<InputCardWidget> {
 
             // Loan Amount Field
             TextFormField(
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+              ],
               controller: _amountController,
               focusNode: _amountFocus,
               keyboardType: TextInputType.number,
