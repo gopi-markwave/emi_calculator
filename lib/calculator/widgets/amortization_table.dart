@@ -214,58 +214,48 @@ class _AmortizationTableState extends ConsumerState<AmortizationTable> {
                         GridColumn(
                           columnName: 'month',
                           label: _buildHeader(isYearly ? "Year" : "Month"),
-                          width: 80,
                         ),
                         GridColumn(
                           columnName: 'emi',
                           label: _buildHeader(
                             isYearly ? "EMI (Yearly)" : "EMI (Monthly)",
                           ),
-                          width: 120,
                         ),
                         GridColumn(
                           columnName: 'cpf',
                           label: _buildHeader(
                             isYearly ? "CPF (Yearly)" : "CPF (Monthly)",
                           ),
-                          width: 120,
                         ),
                         GridColumn(
                           columnName: 'revenue',
                           label: _buildHeader("Revenue"),
-                          width: 120,
                         ),
                         GridColumn(
                           columnName: 'payment',
                           label: _buildHeader(
                             isYearly ? "Repayment" : "Repayment",
                           ),
-                          width: 120,
                         ),
                         GridColumn(
                           columnName: 'loanCut',
                           label: _buildHeader("Debit From Balance"),
-                          width: 140,
                         ),
                         GridColumn(
                           columnName: 'loanBalance',
                           label: _buildHeader("Balance"),
-                          width: 120,
                         ),
                         GridColumn(
                           columnName: 'profit',
                           label: _buildHeader("Profit"),
-                          width: 120,
                         ),
                         GridColumn(
                           columnName: 'loss',
                           label: _buildHeader("From Pocket"),
-                          width: 120,
                         ),
                         GridColumn(
                           columnName: 'netCash',
                           label: _buildHeader("Net Cash"),
-                          width: 120,
                         ),
                       ],
                     ),

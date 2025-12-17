@@ -1,4 +1,3 @@
-import 'package:confetti/confetti.dart';
 import 'package:emi_calculator/calculator/widgets/animated_indian_currency.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -278,223 +277,248 @@ class _QuickStatsWidget extends ConsumerWidget {
               ],
             ),
             const SizedBox(height: 20),
-            StatItemWidget(
-              label: 'Net Cash Flow',
-              value: emiNotifier.totalNetCash,
-              icon: Icons.account_balance_wallet,
-              color: emiNotifier.totalNetCash >= 0 ? Colors.green : Colors.red,
-              // prefix: emiNotifier.currencyFormat.currencySymbol,
-              prefix: '₹',
-              enableConfetti: true,
-            ),
-            const SizedBox(height: 12),
-            StatItemWidget(
-              label: 'Projected Asset Value',
-              value: emiNotifier.totalAssetValue,
-              icon: Icons.savings,
-
-              color: Colors.indigo,
-              // prefix: emiNotifier.currencyFormat.currencySymbol,
-              prefix: '₹',
-              // tooltipText: emiNotifier.getAssetBreakdown(),
-            ),
-            const SizedBox(height: 12),
-            StatItemWidget(
-              label: 'Total Return',
-              value: emiNotifier.totalNetCash + emiNotifier.totalAssetValue,
-              prefix: '₹',
-              precision: 0,
-              icon: Icons.percent,
-              color: Colors.orange,
-              secondaryText: emiNotifier.amount > 0
-                  ? 'ROI: ${(((emiNotifier.totalNetCash + emiNotifier.totalAssetValue) / emiNotifier.amount) * 100).toStringAsFixed(1)}%'
-                  : 'ROI: 0.0%',
-              isSecondaryBold: true,
-              tooltipText: 'Combined Return: Net Cash + Asset Value',
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class StatItemWidget extends StatefulWidget {
-  final String label;
-  final double value;
-  final IconData icon;
-  final Color color;
-  final String prefix;
-  final String suffix;
-  final int precision;
-  final bool enableConfetti;
-  final String? tooltipText;
-  final String? secondaryText;
-  final bool isSecondaryBold;
-
-  const StatItemWidget({
-    super.key,
-    required this.label,
-    required this.value,
-    required this.icon,
-    required this.color,
-    this.prefix = '',
-    this.suffix = '',
-    this.precision = 0,
-    this.enableConfetti = false,
-    this.tooltipText,
-    this.secondaryText,
-    this.isSecondaryBold = false,
-  });
-
-  @override
-  State<StatItemWidget> createState() => _StatItemWidgetState();
-}
-
-class _StatItemWidgetState extends State<StatItemWidget> {
-  late ConfettiController _confettiController;
-
-  @override
-  void initState() {
-    super.initState();
-    _confettiController = ConfettiController(
-      duration: const Duration(seconds: 1),
-    );
-  }
-
-  @override
-  void dispose() {
-    _confettiController.dispose();
-    super.dispose();
-  }
-
-  void _playConfetti() {
-    if (widget.enableConfetti) {
-      _confettiController.play();
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    Widget content = MouseRegion(
-      onEnter: (_) => _playConfetti(),
-      child: GestureDetector(
-        onTap: _playConfetti,
-        child: Stack(
-          alignment: Alignment.center,
-          clipBehavior: Clip.none,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: widget.color.withOpacity(0.05),
-                borderRadius: BorderRadius.circular(12),
-              ),
+            SizedBox(
+              height: 220, // Fixed height for the bento grid
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: widget.color.withOpacity(0.1),
-                      shape: BoxShape.circle,
+                  // LEFT: ROI Card (Large)
+                  Expanded(
+                    flex: 4,
+                    child: _buildGradientStatCard(
+                      context,
+                      label: 'Total Return',
+                      value:
+                          emiNotifier.totalNetCash +
+                          emiNotifier.totalAssetValue,
+                      prefix: '₹',
+                      icon: Icons.percent,
+                      color: Colors.green,
+                      secondaryText: emiNotifier.amount > 0
+                          ? '${(((emiNotifier.totalNetCash + emiNotifier.totalAssetValue) / emiNotifier.amount) * 100).toStringAsFixed(1)}%'
+                          : '0.0%',
+                      isSecondaryBold: true,
+                      isLarge: true,
                     ),
-                    child: Icon(widget.icon, color: widget.color, size: 20),
                   ),
                   const SizedBox(width: 12),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      AnimatedIndianCurrency(
-                        value: widget.value,
-                        duration: const Duration(milliseconds: 1500),
-                        prefix: widget.prefix,
-                        suffix: widget.suffix,
-                        decimalDigits: widget.precision,
-                        style: GoogleFonts.inter(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                          color: Theme.of(context).colorScheme.onSurface,
-                        ),
-                      ),
-                      Text(
-                        widget.label,
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          color: Theme.of(
+                  // RIGHT: Stacked Cards
+                  Expanded(
+                    flex: 5,
+                    child: Column(
+                      children: [
+                        Expanded(
+                          child: _buildGradientStatCard(
                             context,
-                          ).colorScheme.onSurface.withOpacity(0.7),
+                            label: 'Net Cash Flow',
+                            value: emiNotifier.totalNetCash,
+                            prefix: '₹',
+                            icon: Icons.account_balance_wallet,
+                            color: Colors.blue,
+                          ),
                         ),
-                      ),
-                      if (widget.secondaryText != null) ...[
-                        const SizedBox(height: 4),
-                        widget.isSecondaryBold
-                            ? Text(
-                                widget.secondaryText!,
-                                style: GoogleFonts.inter(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w800,
-                                  color: widget.color.withOpacity(0.9),
-                                ),
-                              )
-                            : Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 6,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: widget.color.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(4),
-                                  border: Border.all(
-                                    color: widget.color.withOpacity(0.3),
-                                  ),
-                                ),
-                                child: Text(
-                                  widget.secondaryText!,
-                                  style: GoogleFonts.inter(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                    color: widget.color,
-                                  ),
-                                ),
-                              ),
+                        const SizedBox(height: 12),
+                        Expanded(
+                          child: _buildGradientStatCard(
+                            context,
+                            label: 'Projected Asset',
+                            value: emiNotifier.totalAssetValue,
+                            prefix: '₹',
+                            icon: Icons.savings,
+                            color: Colors.blue,
+                          ),
+                        ),
                       ],
-                    ],
+                    ),
                   ),
                 ],
               ),
             ),
-            if (widget.enableConfetti)
-              Align(
-                alignment: Alignment.center,
-                child: ConfettiWidget(
-                  confettiController: _confettiController,
-                  blastDirectionality: BlastDirectionality.explosive,
-                  shouldLoop: false,
-                  colors: const [Colors.green, Colors.blue, Colors.orange],
-                  numberOfParticles: 20,
-                  gravity: 0.1,
-                ),
-              ),
           ],
         ),
       ),
     );
+  }
 
-    if (widget.tooltipText != null && widget.tooltipText!.isNotEmpty) {
-      return Tooltip(
-        message: widget.tooltipText!,
-        padding: const EdgeInsets.all(12),
-        margin: const EdgeInsets.all(12),
-        showDuration: const Duration(seconds: 5),
-        textStyle: GoogleFonts.inter(fontSize: 12, color: Colors.white),
-        decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.9),
-          borderRadius: BorderRadius.circular(8),
+  Widget _buildGradientStatCard(
+    BuildContext context, {
+    required String label,
+    required double value,
+    required String prefix,
+    required IconData icon,
+    required Color color,
+    String? secondaryText,
+    bool isSecondaryBold = false,
+    bool isLarge = false,
+  }) {
+    return Container(
+      padding: EdgeInsets.all(
+        isLarge ? 16 : 16,
+      ), // Tighter padding for large too
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [color.withOpacity(0.15), color.withOpacity(0.05)],
         ),
-        child: content,
-      );
-    }
+        border: Border.all(color: color.withOpacity(0.2), width: 1.5),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (isLarge) ...[
+                // For Large Card: Icon left, Header next to it?
+                // Or: Icon Left, Header Left (below?), ROI Badge Right.
+                // Let's go with: Icon Left, ROI Badge Right. Header below.
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, color: color, size: 24),
+                ),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.6),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    'ROI',
+                    style: GoogleFonts.inter(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: color,
+                    ),
+                  ),
+                ),
+              ] else ...[
+                // Small Card: Header Left, Icon Right
+                Expanded(
+                  child: Text(
+                    label,
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: Colors.black54,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, color: color, size: 18),
+                ),
+              ],
+            ],
+          ),
 
-    return content;
+          if (isLarge) ...[
+            const Spacer(),
+            Text(
+              label,
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                color: Colors.black54,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 2),
+            // Absolute Value
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: AnimatedIndianCurrency(
+                value: value,
+                prefix: prefix,
+                style: GoogleFonts.inter(
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold,
+                  color: color.withOpacity(0.9),
+                ),
+              ),
+            ),
+            // Secondary Value (ROI %) - make it BIG
+            if (secondaryText != null) ...[
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  Icon(Icons.trending_up, size: 16, color: color),
+                  const SizedBox(width: 4),
+                  Text(
+                    secondaryText,
+                    style: GoogleFonts.inter(
+                      fontSize: 22, // Large ROI %
+                      fontWeight: FontWeight.w800,
+                      color: color,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                "     ROI",
+                style: GoogleFonts.inter(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                  color: color,
+                ),
+              ),
+            ],
+          ] else ...[
+            const Spacer(),
+            // Small Card Value
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: AnimatedIndianCurrency(
+                value: value,
+                prefix: prefix,
+                style: GoogleFonts.inter(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: color.withOpacity(0.9),
+                ),
+              ),
+            ),
+            if (secondaryText != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                secondaryText,
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: isSecondaryBold
+                      ? FontWeight.bold
+                      : FontWeight.w400,
+                  color: isSecondaryBold ? color : Colors.black54,
+                ),
+              ),
+            ],
+          ],
+        ],
+      ),
+    );
   }
 }
