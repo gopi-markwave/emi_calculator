@@ -1,8 +1,12 @@
+import 'dart:convert';
+
 import 'package:emi_calculator/calculator/models/emi_details.dart';
 import 'package:emi_calculator/calculator/models/emi_schedule_row.dart';
 import 'package:emi_calculator/calculator/utils/export_utils.dart';
+import 'package:emi_calculator/constants/app_constants.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 
 final emiProvider = ChangeNotifierProvider<EmiNotifier>((ref) {
@@ -50,6 +54,34 @@ class EmiNotifier extends ChangeNotifier {
   double get totalLoss =>
       _state.schedule.fold(0, (sum, item) => sum + item.loss);
   double get totalNetCash => totalProfit - totalLoss;
+
+  // Asset values fetched from API
+  List<Map<String, dynamic>> _assetValuesList = [];
+  bool _isLoadingAssetValues = false;
+  String? _assetValuesError;
+
+  List<Map<String, dynamic>> get assetValuesList => _assetValuesList;
+  bool get isLoadingAssetValues => _isLoadingAssetValues;
+  String? get assetValuesError => _assetValuesError;
+
+  // Recommended configuration (planner)
+  int? _recommendedUnits;
+  double? _recommendedRate;
+
+  int? get recommendedUnits => _recommendedUnits;
+  double? get recommendedRate => _recommendedRate;
+
+  double get totalMonthlyPayment {
+    // If CPF is enabled, we add CPF per month (assuming flat rate per buffalo)
+    // Looking at calculation logic later in file...
+    // CPF = 300 * 2 * units
+    double currentCpf = 0;
+    if (cpfEnabled) {
+      // 300 per buffalo per month. 2 buffaloes per unit.
+      currentCpf = 300.0 * 2 * (units == 0 ? 1 : units);
+    }
+    return emi + currentCpf;
+  }
 
   /// Calculate total Asset Value at the end of the tenure.
   /// Includes original buffaloes (valued at max) + all grown calves (valued by age).
@@ -122,7 +154,13 @@ class EmiNotifier extends ChangeNotifier {
     double total = 0;
 
     // 1. Mothers
-    total += (175000 * 2 * unitCount);
+    // Use age 60 (5 years) to represent fully mature adults, ensuring they fall
+    // into the top valuation bracket (48+ months -> 2,00,000).
+    // Age 48 falls into the 41-48 bracket (1,75,000).
+
+    // im just placing 60 for the initial mothers.  19-12-25. edited by gopi
+    final double motherValue = _getValuationForAge(60);
+    total += (motherValue * 2 * unitCount);
 
     // 2. Offspring
     for (final age in offspringAges) {
@@ -164,13 +202,13 @@ class EmiNotifier extends ChangeNotifier {
       final int birthMonth = birthTimeline[i];
 
       // A calf is born at birthMonth.
-      // It consumes no resources? (Assumption).
-      // It matures at Age 36 (Month 37 from birth).
-      // So at month (birthMonth + 37), it gives its first baby.
+      // New fast-tracked rule:
+      // - Each calf gives its first baby at age 37 months (3 years + 1 month?).
+      //   Spreadsheet implies gap of 36 months from birth.
+      // Age at calendar month t is: age = (t - birthMonth) + 1
+      // So age 37 => t = birthMonth + 36.
 
-      // First Calving
-      // Age 36 months -> Birth at 37th month
-      int firstBabyMonth = birthMonth + 37;
+      int firstBabyMonth = birthMonth + 36;
 
       // Generate births for this new calf
       for (int babyM = firstBabyMonth; babyM <= tenureMonths; babyM += 12) {
@@ -213,15 +251,356 @@ class EmiNotifier extends ChangeNotifier {
 
   double _getValuationForAge(int age) {
     if (age <= 0) return 0;
-    if (age <= 6) return 3000;
-    if (age <= 12) return 6000;
-    if (age <= 18) return 12000;
-    if (age <= 24) return 25000;
-    if (age <= 30) return 35000;
-    if (age <= 40) return 50000; // 31-36 and 37-40 merged
-    if (age <= 48) return 100000;
-    if (age <= 60) return 150000;
-    return 175000; // 60+
+    // Prefer API-driven asset values when available
+    if (_assetValuesList.isNotEmpty) {
+      for (final range in _assetValuesList) {
+        final minAge = (range['minAge'] as num?)?.toInt();
+        final maxAge = (range['maxAge'] as num?)?.toInt();
+        final price = range['price'];
+
+        if (minAge == null || maxAge == null || price == null) continue;
+
+        if (age >= minAge && age <= maxAge) {
+          return (price as num).toDouble();
+        }
+      }
+    }
+
+    // Fallback to hardcoded slabs if API data is unavailable or no range matched
+    // 0 - 12 months  -> 10,000
+    if (age <= 12) return 10000;
+    // 13 - 18 months -> 25,000
+    if (age <= 18) return 25000;
+    // 19 - 24 months -> 40,000
+    if (age <= 24) return 40000;
+    // 25 - 34 months -> 1,00,000
+    if (age <= 34) return 100000;
+    // 35 - 40 months -> 1,50,000
+    if (age <= 40) return 150000;
+    // 41 - 47 months -> 1,75,000 (48 inclusive moves to 2L in spreadsheet)
+    if (age < 49) return 175000;
+    // 48+ months     -> 2,00,000
+    return 200000;
+  }
+
+  Future<void> fetchAssetValues() async {
+    _isLoadingAssetValues = true;
+    _assetValuesError = null;
+    notifyListeners();
+
+    try {
+      final uri = Uri.parse('${ApiConstants.baseUrl}purchases/asset-values');
+      final response = await http.get(uri);
+
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+        final statusCode = decoded['statuscode'];
+        if (statusCode == 200 && decoded['data'] is List) {
+          final List<dynamic> data = decoded['data'];
+          _assetValuesList = data
+              .map((e) => Map<String, dynamic>.from(e as Map))
+              .toList();
+          // print(_assetValuesList);
+          _assetValuesError = null;
+        } else {
+          _assetValuesError = 'Invalid response format';
+        }
+      } else {
+        _assetValuesError = 'HTTP ${response.statusCode}';
+      }
+    } catch (e) {
+      _assetValuesError = e.toString();
+    } finally {
+      _isLoadingAssetValues = false;
+      notifyListeners();
+    }
+  }
+
+  /// Runs a full monthly simulation for an arbitrary configuration
+  /// without mutating the notifier state. Used by the planner.
+  List<EmiScheduleRow> _simulateConfig({
+    required double amount,
+    required double annualRate,
+    required int tenureMonths,
+    required int units,
+    required bool cpfEnabled,
+  }) {
+    final double principal = amount;
+    final double monthlyRate = annualRate / 12 / 100;
+
+    double emiLocal = 0;
+    if (monthlyRate == 0) {
+      emiLocal = principal / (tenureMonths > 0 ? tenureMonths : 1);
+    } else {
+      final powFactor = (1 + monthlyRate).pow(tenureMonths);
+      emiLocal = principal * monthlyRate * powFactor / (powFactor - 1);
+    }
+
+    double balance = principal;
+    double totalInterestLocal = 0;
+    final List<EmiScheduleRow> scheduleList = [];
+
+    const double perUnitBase = 350000.0;
+    const double perUnitCpf = 13000.0;
+
+    final int unitCount = units; // Allow 0
+
+    final double requiredPerUnit =
+        perUnitBase + (cpfEnabled ? perUnitCpf : 0.0);
+    final double requiredCapital = requiredPerUnit * unitCount;
+
+    double loanPool = principal > requiredCapital
+        ? (principal - requiredCapital)
+        : 0.0;
+
+    double revenueForAnimal(int month, int revenueStartMonth) {
+      if (month < revenueStartMonth) return 0;
+      final k = month - revenueStartMonth;
+      final cyclePos = k % 12;
+      if (cyclePos >= 0 && cyclePos <= 4) {
+        return 9000;
+      } else if (cyclePos >= 5 && cyclePos <= 7) {
+        return 6000;
+      }
+      return 0;
+    }
+
+    const int orderMonthBuff1 = 1;
+    const int orderMonthBuff2 = 7;
+    const int revenueStartBuff1 = 3;
+    const int revenueStartBuff2 = 9;
+
+    final List<int> calfRevenueStartMonths = [];
+    final List<int> calfCpfStartMonths = [];
+
+    void generateCalvesForBuffalo(int firstBirthMonth) {
+      for (
+        int birthMonth = firstBirthMonth;
+        birthMonth <= tenureMonths;
+        birthMonth += 12
+      ) {
+        // Calf business rules must mirror _calculate:
+        // - CPF starts from age 25 months (25th month after birth).
+        // - Revenue cycle anchor at age 33 months.
+        final int cpfStartMonth = birthMonth + 24;
+        if (cpfStartMonth <= tenureMonths) {
+          calfCpfStartMonths.add(cpfStartMonth);
+        }
+
+        final int revenueBaseMonth = birthMonth + 33;
+        if (revenueBaseMonth <= tenureMonths) {
+          calfRevenueStartMonths.add(revenueBaseMonth);
+        }
+      }
+    }
+
+    generateCalvesForBuffalo(orderMonthBuff1);
+    generateCalvesForBuffalo(orderMonthBuff2);
+
+    const double yearlyCpfPerAnimal = 13000;
+    const double monthlyCpfPerAnimal = yearlyCpfPerAnimal / 12;
+
+    for (int m = 1; m <= tenureMonths; m++) {
+      final double interestForMonth = balance * monthlyRate;
+      double principalForMonth = emiLocal - interestForMonth;
+
+      if (m == tenureMonths) {
+        principalForMonth = balance;
+      }
+
+      if (principalForMonth < 0) principalForMonth = 0;
+
+      balance -= principalForMonth;
+      if (balance < 1e-8) balance = 0;
+
+      totalInterestLocal += interestForMonth;
+
+      // Revenue modelling (scaled by units)
+      double revenuePerUnit = 0;
+
+      // Adult buffalo revenue
+      revenuePerUnit += revenueForAnimal(m, revenueStartBuff1);
+      revenuePerUnit += revenueForAnimal(m, revenueStartBuff2);
+
+      // Calf revenue – same pattern as in _calculate
+      double revenueForCalf(int month, int cycleBaseMonth) {
+        if (month < cycleBaseMonth) return 0;
+        final k = month - cycleBaseMonth;
+        final cyclePos = k % 12;
+        if (cyclePos <= 1) return 0;
+        if (cyclePos <= 6) return 9000;
+        if (cyclePos <= 9) return 6000;
+        return 0;
+      }
+
+      for (final startMonth in calfRevenueStartMonths) {
+        revenuePerUnit += revenueForCalf(m, startMonth);
+      }
+
+      final double revenue = revenuePerUnit * unitCount;
+
+      // CPF modelling (monthly)
+      double cpf = 0;
+      if (cpfEnabled) {
+        if (m > 12) {
+          if (m >= orderMonthBuff1) {
+            cpf += monthlyCpfPerAnimal * unitCount;
+          }
+          if (m >= orderMonthBuff2 + 12) {
+            cpf += monthlyCpfPerAnimal * unitCount;
+          }
+          for (final cpfStartMonth in calfCpfStartMonths) {
+            if (m >= cpfStartMonth) {
+              cpf += monthlyCpfPerAnimal * unitCount;
+            }
+          }
+        }
+      }
+
+      // Paying EMI + CPF from revenue + loan pool
+      double emiFromRevenue = revenue >= emiLocal ? emiLocal : revenue;
+      double remainingRevenueAfterEmi = revenue - emiFromRevenue;
+      double emiFromLoanPool = 0;
+
+      double remainingEmi = emiLocal - emiFromRevenue;
+      if (remainingEmi > 0 && loanPool > 0) {
+        final take = remainingEmi <= loanPool ? remainingEmi : loanPool;
+        emiFromLoanPool = take;
+        loanPool -= take;
+        remainingEmi -= take;
+      }
+
+      double cpfFromRevenue = 0;
+      double cpfFromLoanPool = 0;
+      double remainingCpf = cpf;
+
+      if (remainingRevenueAfterEmi > 0 && remainingCpf > 0) {
+        final take = remainingRevenueAfterEmi <= remainingCpf
+            ? remainingRevenueAfterEmi
+            : remainingCpf;
+        cpfFromRevenue = take;
+        remainingRevenueAfterEmi -= take;
+        remainingCpf -= take;
+      }
+
+      if (remainingCpf > 0 && loanPool > 0) {
+        final take = remainingCpf <= loanPool ? remainingCpf : loanPool;
+        cpfFromLoanPool = take;
+        loanPool -= take;
+        remainingCpf -= take;
+      }
+
+      double loss = remainingEmi + remainingCpf;
+      if (loss < 0) loss = 0;
+
+      double profit = revenue - emiFromRevenue - cpfFromRevenue;
+      if (profit < 0) profit = 0;
+
+      if (profit > 0) {
+        loanPool += profit;
+      }
+
+      scheduleList.add(
+        EmiScheduleRow(
+          month: m,
+          emi: emiLocal,
+          interest: interestForMonth,
+          principal: principalForMonth,
+          balance: balance,
+          revenue: revenue,
+          cpf: cpf,
+          emiFromRevenue: emiFromRevenue,
+          emiFromLoanPool: emiFromLoanPool,
+          cpfFromRevenue: cpfFromRevenue,
+          cpfFromLoanPool: cpfFromLoanPool,
+          loanPoolBalance: loanPool,
+          profit: profit,
+          loss: loss,
+        ),
+      );
+    }
+
+    return scheduleList;
+  }
+
+  bool _isSelfSustaining({
+    required double amount,
+    required double annualRate,
+    required int tenureMonths,
+    required int units,
+    required bool cpfEnabled,
+  }) {
+    final schedule = _simulateConfig(
+      amount: amount,
+      annualRate: annualRate,
+      tenureMonths: tenureMonths,
+      units: units,
+      cpfEnabled: cpfEnabled,
+    );
+    return schedule.every((row) => row.loss <= 0.0001);
+  }
+
+  double? _findMaxSustainableRate({
+    required double amount,
+    required int tenureMonths,
+    required int units,
+    required bool cpfEnabled,
+  }) {
+    const double maxRate = 36.0;
+    const double minRate = 0.0;
+    const double step = 0.5;
+
+    for (double r = maxRate; r >= minRate; r -= step) {
+      if (_isSelfSustaining(
+        amount: amount,
+        annualRate: r,
+        tenureMonths: tenureMonths,
+        units: units,
+        cpfEnabled: cpfEnabled,
+      )) {
+        return r;
+      }
+    }
+    return null;
+  }
+
+  /// Computes recommended units & interest for current state such that
+  /// no month requires From Pocket (loss == 0). Result is exposed via
+  /// [recommendedUnits] and [recommendedRate].
+  void computeRecommendedPlan() {
+    final double amount = _state.amount;
+    final int tenureMonths = _state.months;
+    final bool cpfOn = _state.cpfEnabled;
+
+    const double perUnitBase = 350000.0;
+    const double perUnitCpf = 13000.0;
+    final double requiredPerUnit = perUnitBase + (cpfOn ? perUnitCpf : 0.0);
+
+    int maxUnitsByCapital = requiredPerUnit > 0
+        ? (amount ~/ requiredPerUnit)
+        : 0;
+    if (maxUnitsByCapital < 1) maxUnitsByCapital = 1;
+
+    int? bestUnits;
+    double? bestRate;
+
+    for (int units = maxUnitsByCapital; units >= 1; units--) {
+      final rate = _findMaxSustainableRate(
+        amount: amount,
+        tenureMonths: tenureMonths,
+        units: units,
+        cpfEnabled: cpfOn,
+      );
+      if (rate != null) {
+        bestUnits = units;
+        bestRate = rate;
+        break;
+      }
+    }
+
+    _recommendedUnits = bestUnits;
+    _recommendedRate = bestRate;
+    notifyListeners();
   }
 
   // Shared currency formatter using Indian numbering system (en_IN)
@@ -249,6 +628,17 @@ class EmiNotifier extends ChangeNotifier {
       amountErrorMessage: null,
     );
     _calculate();
+
+    // After recalculation, auto-compute and apply a self-sustaining plan
+    // based on the new loan amount (if possible).
+    computeRecommendedPlan();
+    if (_recommendedUnits != null && _recommendedRate != null) {
+      _state = _state.copyWith(
+        units: _recommendedUnits,
+        rate: _recommendedRate,
+      );
+      _calculate();
+    }
     notifyListeners();
   }
 
@@ -276,6 +666,16 @@ class EmiNotifier extends ChangeNotifier {
     _state = _state.copyWith(cpfEnabled: enabled);
     // CPF affects monthly cashflows (cpf column), so recompute schedule
     _calculate();
+
+    // Re-run planner so recommended units/rate respect new CPF setting
+    computeRecommendedPlan();
+    if (_recommendedUnits != null && _recommendedRate != null) {
+      _state = _state.copyWith(
+        units: _recommendedUnits,
+        rate: _recommendedRate,
+      );
+      _calculate();
+    }
     notifyListeners();
   }
 
@@ -395,18 +795,23 @@ class EmiNotifier extends ChangeNotifier {
         birthMonth <= months;
         birthMonth += 12
       ) {
-        final int maturityMonth = birthMonth + 36;
-        if (maturityMonth > months) break;
+        // New business rules for calves:
+        // - CPF starts from age 25 months (i.e., from the 25th month after birth).
+        // - Revenue cycle anchor at age 33 months.
+        //   Ages 33 & 34: monitoring (0 revenue), from age 35 revenue follows
+        //   the same 00-99999-666-0000 pattern in a 12-month loop.
 
-        // For calves, revenue starts from maturity month + 2 months gap.
-        // User logic: "initially the first 2 months will not give revenue".
-        // Example logic pattern: 00-99999...
-        // The revenueForAnimal function starts the 9000 cycle at the given start month.
-        // So for "0, 0, 9000", we must start the cycle 2 months AFTER maturity.
-        calfRevenueStartMonths.add(maturityMonth + 2);
+        // CPF start: birth + 24 (first charge is in the 25th month).
+        final int cpfStartMonth = birthMonth + 24;
+        if (cpfStartMonth <= months) {
+          calfCpfStartMonths.add(cpfStartMonth);
+        }
 
-        // CPF for new calves starts immediately from maturity (cost starts before revenue).
-        calfCpfStartMonths.add(maturityMonth);
+        // Revenue cycle base: birth + 33 (age 33 as cycle anchor).
+        final int revenueBaseMonth = birthMonth + 33;
+        if (revenueBaseMonth <= months) {
+          calfRevenueStartMonths.add(revenueBaseMonth);
+        }
       }
     }
 
@@ -445,13 +850,29 @@ class EmiNotifier extends ChangeNotifier {
       final int unitCount = _state.units; // Allow 0
       double revenuePerUnit = 0;
 
-      // Buffalo revenue
+      // Buffalo revenue (adult animals) – unchanged pattern
       revenuePerUnit += revenueForAnimal(m, revenueStartBuff1);
       revenuePerUnit += revenueForAnimal(m, revenueStartBuff2);
 
-      // Revenue from all matured calves (for both buffaloes)
+      // Revenue from all calves (for both buffaloes), using the
+      // new fast-tracked pattern with 0,0 then 9k/6k in a 12‑month loop.
+      double revenueForCalf(int month, int cycleBaseMonth) {
+        if (month < cycleBaseMonth) return 0;
+        final k = month - cycleBaseMonth; // 0-based from age 33 anchor
+        final cyclePos = k % 12;
+
+        // 0-1  -> 0 (monitoring at ages 33 & 34)
+        if (cyclePos <= 1) return 0;
+        // 2-6  -> 9000 (5 months)
+        if (cyclePos <= 6) return 9000;
+        // 7-9  -> 6000 (3 months)
+        if (cyclePos <= 9) return 6000;
+        // 10-11 -> 0 (rest months)
+        return 0;
+      }
+
       for (final startMonth in calfRevenueStartMonths) {
-        revenuePerUnit += revenueForAnimal(m, startMonth);
+        revenuePerUnit += revenueForCalf(m, startMonth);
       }
 
       final double revenue = revenuePerUnit * unitCount;

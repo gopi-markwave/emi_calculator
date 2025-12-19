@@ -10,11 +10,24 @@ import '../widgets/header_widget.dart';
 import '../widgets/input_card_widget.dart';
 import '../widgets/result_card_widget.dart';
 
-class EmiCalculatorScreen extends ConsumerWidget {
+class EmiCalculatorScreen extends ConsumerStatefulWidget {
   const EmiCalculatorScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<EmiCalculatorScreen> createState() => _EmiCalculatorScreenState();
+}
+
+class _EmiCalculatorScreenState extends ConsumerState<EmiCalculatorScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(emiProvider).fetchAssetValues();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final emiNotifier = ref.watch(emiProvider);
 
     final screenWidth = MediaQuery.of(context).size.width;
@@ -198,8 +211,8 @@ class EmiCalculatorScreen extends ConsumerWidget {
           ),
           const Divider(height: 32),
           _buildSummaryRow(
-            'Monthly EMI',
-            '₹${emiNotifier.formatCurrency(emiNotifier.emi)}',
+            'Monthly Payment',
+            '₹${emiNotifier.formatCurrency(emiNotifier.totalMonthlyPayment)}',
             context,
           ),
           _buildSummaryRow(
@@ -285,8 +298,7 @@ class _QuickStatsWidget extends ConsumerWidget {
                   // LEFT: ROI Card (Large)
                   Expanded(
                     flex: 4,
-                    child: _buildGradientStatCard(
-                      context,
+                    child: HoverGradientStatCard(
                       label: 'Total Return',
                       value:
                           emiNotifier.totalNetCash +
@@ -308,8 +320,7 @@ class _QuickStatsWidget extends ConsumerWidget {
                     child: Column(
                       children: [
                         Expanded(
-                          child: _buildGradientStatCard(
-                            context,
+                          child: HoverGradientStatCard(
                             label: 'Net Cash Flow',
                             value: emiNotifier.totalNetCash,
                             prefix: '₹',
@@ -319,8 +330,7 @@ class _QuickStatsWidget extends ConsumerWidget {
                         ),
                         const SizedBox(height: 12),
                         Expanded(
-                          child: _buildGradientStatCard(
-                            context,
+                          child: HoverGradientStatCard(
                             label: 'Projected Asset',
                             value: emiNotifier.totalAssetValue,
                             prefix: '₹',
@@ -339,185 +349,212 @@ class _QuickStatsWidget extends ConsumerWidget {
       ),
     );
   }
+}
 
-  Widget _buildGradientStatCard(
-    BuildContext context, {
-    required String label,
-    required double value,
-    required String prefix,
-    required IconData icon,
-    required Color color,
-    String? secondaryText,
-    bool isSecondaryBold = false,
-    bool isLarge = false,
-  }) {
-    return Container(
-      padding: EdgeInsets.all(
-        isLarge ? 16 : 16,
-      ), // Tighter padding for large too
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [color.withOpacity(0.15), color.withOpacity(0.05)],
-        ),
-        border: Border.all(color: color.withOpacity(0.2), width: 1.5),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: color.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+class HoverGradientStatCard extends StatefulWidget {
+  final String label;
+  final double value;
+  final String prefix;
+  final IconData icon;
+  final Color color;
+  final String? secondaryText;
+  final bool isSecondaryBold;
+  final bool isLarge;
+
+  const HoverGradientStatCard({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.prefix,
+    required this.icon,
+    required this.color,
+    this.secondaryText,
+    this.isSecondaryBold = false,
+    this.isLarge = false,
+  });
+
+  @override
+  State<HoverGradientStatCard> createState() => _HoverGradientStatCardState();
+}
+
+class _HoverGradientStatCardState extends State<HoverGradientStatCard> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+        transform: Matrix4.identity()..scale(_isHovered ? 1.02 : 1.0),
+        transformAlignment: Alignment.center,
+        padding: EdgeInsets.all(widget.isLarge ? 16 : 16),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              widget.color.withOpacity(0.15),
+              widget.color.withOpacity(0.05),
+            ],
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (isLarge) ...[
-                // For Large Card: Icon left, Header next to it?
-                // Or: Icon Left, Header Left (below?), ROI Badge Right.
-                // Let's go with: Icon Left, ROI Badge Right. Header below.
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: color.withOpacity(0.1),
-                    shape: BoxShape.circle,
+          border: Border.all(
+            color: widget.color.withOpacity(_isHovered ? 0.4 : 0.2),
+            width: 1.5,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: widget.color.withOpacity(_isHovered ? 0.2 : 0.1),
+              blurRadius: _isHovered ? 20 : 10,
+              offset: Offset(0, _isHovered ? 8 : 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (widget.isLarge) ...[
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: widget.color.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(widget.icon, color: widget.color, size: 24),
                   ),
-                  child: Icon(icon, color: color, size: 24),
-                ),
-                const Spacer(),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.6),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    'ROI',
-                    style: GoogleFonts.inter(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      color: color,
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.6),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      'ROI',
+                      style: GoogleFonts.inter(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: widget.color,
+                      ),
                     ),
                   ),
-                ),
-              ] else ...[
-                // Small Card: Header Left, Icon Right
-                Expanded(
-                  child: Text(
-                    label,
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      color: Colors.black54,
-                      fontWeight: FontWeight.w600,
+                ] else ...[
+                  Expanded(
+                    child: Text(
+                      widget.label,
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: Colors.black54,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: widget.color.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(widget.icon, color: widget.color, size: 18),
+                  ),
+                ],
+              ],
+            ),
+            if (widget.isLarge) ...[
+              const Spacer(),
+              Text(
+                widget.label,
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  color: Colors.black54,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 2),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: AnimatedIndianCurrency(
+                  value: widget.value,
+                  prefix: widget.prefix,
+                  style: GoogleFonts.inter(
+                    fontSize: 26,
+                    fontWeight: FontWeight.bold,
+                    color: widget.color.withOpacity(0.9),
                   ),
                 ),
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: color.withOpacity(0.1),
-                    shape: BoxShape.circle,
+              ),
+              if (widget.secondaryText != null) ...[
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Icon(Icons.trending_up, size: 16, color: widget.color),
+                    const SizedBox(width: 4),
+                    Text(
+                      widget.secondaryText!,
+                      style: GoogleFonts.inter(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        color: widget.color,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  "     ROI",
+                  style: GoogleFonts.inter(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    color: widget.color,
                   ),
-                  child: Icon(icon, color: color, size: 18),
+                ),
+              ],
+            ] else ...[
+              const Spacer(),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: AnimatedIndianCurrency(
+                  value: widget.value,
+                  prefix: widget.prefix,
+                  style: GoogleFonts.inter(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: widget.color.withOpacity(0.9),
+                  ),
+                ),
+              ),
+              if (widget.secondaryText != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  widget.secondaryText!,
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: widget.isSecondaryBold
+                        ? FontWeight.bold
+                        : FontWeight.w400,
+                    color: widget.isSecondaryBold
+                        ? widget.color
+                        : Colors.black54,
+                  ),
                 ),
               ],
             ],
-          ),
-
-          if (isLarge) ...[
-            const Spacer(),
-            Text(
-              label,
-              style: GoogleFonts.inter(
-                fontSize: 13,
-                color: Colors.black54,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 2),
-            // Absolute Value
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerLeft,
-              child: AnimatedIndianCurrency(
-                value: value,
-                prefix: prefix,
-                style: GoogleFonts.inter(
-                  fontSize: 26,
-                  fontWeight: FontWeight.bold,
-                  color: color.withOpacity(0.9),
-                ),
-              ),
-            ),
-            // Secondary Value (ROI %) - make it BIG
-            if (secondaryText != null) ...[
-              const SizedBox(height: 4),
-              Row(
-                children: [
-                  Icon(Icons.trending_up, size: 16, color: color),
-                  const SizedBox(width: 4),
-                  Text(
-                    secondaryText,
-                    style: GoogleFonts.inter(
-                      fontSize: 22, // Large ROI %
-                      fontWeight: FontWeight.w800,
-                      color: color,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Text(
-                "     ROI",
-                style: GoogleFonts.inter(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w800,
-                  color: color,
-                ),
-              ),
-            ],
-          ] else ...[
-            const Spacer(),
-            // Small Card Value
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerLeft,
-              child: AnimatedIndianCurrency(
-                value: value,
-                prefix: prefix,
-                style: GoogleFonts.inter(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: color.withOpacity(0.9),
-                ),
-              ),
-            ),
-            if (secondaryText != null) ...[
-              const SizedBox(height: 4),
-              Text(
-                secondaryText,
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  fontWeight: isSecondaryBold
-                      ? FontWeight.bold
-                      : FontWeight.w400,
-                  color: isSecondaryBold ? color : Colors.black54,
-                ),
-              ),
-            ],
           ],
-        ],
+        ),
       ),
     );
   }

@@ -48,6 +48,7 @@ dependencies:
   syncfusion_flutter_sliders: ^31.2.18
   countup: 
   confetti: ^0.7.0 
+  http:
 
 dev_dependencies:
   flutter_test:

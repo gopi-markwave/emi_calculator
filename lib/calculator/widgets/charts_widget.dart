@@ -343,9 +343,26 @@ class BarChartWidget extends StatelessWidget {
                   barTouchData: BarTouchData(
                     touchTooltipData: BarTouchTooltipData(
                       getTooltipColor: (_) => Colors.black87,
-                      getTooltipItem: (group, idx, rod, __) {
+                      getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                        final yearIndex = group.x;
+
+                        // Calculate yearly EMI and CPF from schedule for this year
+                        final months = emiNotifier.monthsCount;
+                        final startIndex = yearIndex * 12;
+                        final endIndex = ((yearIndex + 1) * 12)
+                            .clamp(0, emiNotifier.schedule.length);
+
+                        double emiSum = 0;
+                        double cpfSum = 0;
+                        for (int i = startIndex; i < endIndex; i++) {
+                          emiSum += emiNotifier.schedule[i].emi;
+                          cpfSum += emiNotifier.schedule[i].cpf;
+                        }
+
                         return BarTooltipItem(
-                          "Year ${group.x + 1}\n${emiNotifier.formatCurrency(rod.toY)}",
+                          'Year ${yearIndex + 1}\n'
+                          'EMI: ${emiNotifier.formatCurrency(emiSum)}\n'
+                          'CPF: ${emiNotifier.formatCurrency(cpfSum)}',
                           const TextStyle(color: Colors.white),
                         );
                       },

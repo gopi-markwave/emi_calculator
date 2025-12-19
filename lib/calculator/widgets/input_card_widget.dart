@@ -159,6 +159,14 @@ class _InputCardWidgetState extends ConsumerState<InputCardWidget> {
                 hintText: 'e.g. 4,00,000',
                 prefixText: '₹ ',
                 prefixIcon: const Icon(Icons.account_balance),
+                enabledBorder: OutlineInputBorder(
+      borderSide: BorderSide(color: Colors.grey, width: 1.0),
+    ),
+    
+    // 2. Make the "Focused" state look identical to the normal state
+    focusedBorder: OutlineInputBorder(
+      borderSide: BorderSide(color: Colors.grey, width: 1.0),
+    ),
                 errorText: emiNotifier.hasAmountError
                     ? emiNotifier.amountErrorMessage
                     : null,
