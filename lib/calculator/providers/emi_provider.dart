@@ -615,6 +615,16 @@ class EmiNotifier extends ChangeNotifier {
 
   EmiNotifier() {
     _calculate();
+
+    // optimized initial plan. 19-12-25. edited by gopi
+    computeRecommendedPlan();
+    if (_recommendedUnits != null && _recommendedRate != null) {
+      _state = _state.copyWith(
+        units: _recommendedUnits,
+        rate: _recommendedRate,
+      );
+      _calculate();
+    }
   }
 
   // -----------------------------
@@ -696,6 +706,16 @@ class EmiNotifier extends ChangeNotifier {
     _state = _state.copyWith(amount: 400000, rate: 18.0, years: 60);
     _paginationLimit = 12;
     _calculate();
+
+    // optimized plan on reset too
+    computeRecommendedPlan();
+    if (_recommendedUnits != null && _recommendedRate != null) {
+      _state = _state.copyWith(
+        units: _recommendedUnits,
+        rate: _recommendedRate,
+      );
+      _calculate();
+    }
   }
 
   // ------------------------------------
