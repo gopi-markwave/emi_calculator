@@ -44,6 +44,7 @@ class EmiNotifier extends ChangeNotifier {
   String? get rateErrorMessage => _state.rateErrorMessage;
   int get units => _state.units;
   bool get cpfEnabled => _state.cpfEnabled;
+  bool get cgfEnabled => _state.cgfEnabled;
   int get paginationLimit => _paginationLimit;
 
   // Computed Business Metrics
@@ -316,6 +317,15 @@ class EmiNotifier extends ChangeNotifier {
     }
   }
 
+  double _getMonthlyCgfForCalfAge(int age) {
+    if (age <= 12) return 0; // 0-12 months free
+    if (age <= 18) return 1000; // 13-18 months: 1000/mo (6000 total)
+    if (age <= 24) return 1400; // 19-24 months: 1400/mo (8400 total)
+    if (age <= 30) return 1750; // 25-30 months: 1750/mo (10500 total)
+    if (age <= 36) return 2500; // 31-36 months: 2500/mo (15000 total)
+    return 0;
+  }
+
   /// Runs a full monthly simulation for an arbitrary configuration
   /// without mutating the notifier state. Used by the planner.
   List<EmiScheduleRow> _simulateConfig({
@@ -324,6 +334,7 @@ class EmiNotifier extends ChangeNotifier {
     required int tenureMonths,
     required int units,
     required bool cpfEnabled,
+    required bool cgfEnabled,
   }) {
     final double principal = amount;
     final double monthlyRate = annualRate / 12 / 100;
@@ -341,7 +352,7 @@ class EmiNotifier extends ChangeNotifier {
     final List<EmiScheduleRow> scheduleList = [];
 
     const double perUnitBase = 350000.0;
-    const double perUnitCpf = 13000.0;
+    const double perUnitCpf = BusinessConstants.cpfPerUnit;
 
     final int unitCount = units; // Allow 0
 
@@ -372,16 +383,16 @@ class EmiNotifier extends ChangeNotifier {
 
     final List<int> calfRevenueStartMonths = [];
     final List<int> calfCpfStartMonths = [];
+    final List<int> calfBirthMonths = [];
 
-    void generateCalvesForBuffalo(int firstBirthMonth) {
+    void trackCalfBirths(int firstBirthMonth) {
       for (
         int birthMonth = firstBirthMonth;
         birthMonth <= tenureMonths;
         birthMonth += 12
       ) {
-        // Calf business rules must mirror _calculate:
-        // - CPF starts from age 25 months (25th month after birth).
-        // - Revenue cycle anchor at age 33 months.
+        calfBirthMonths.add(birthMonth);
+
         final int cpfStartMonth = birthMonth + 24;
         if (cpfStartMonth <= tenureMonths) {
           calfCpfStartMonths.add(cpfStartMonth);
@@ -394,10 +405,10 @@ class EmiNotifier extends ChangeNotifier {
       }
     }
 
-    generateCalvesForBuffalo(orderMonthBuff1);
-    generateCalvesForBuffalo(orderMonthBuff2);
+    trackCalfBirths(orderMonthBuff1);
+    trackCalfBirths(orderMonthBuff2);
 
-    const double yearlyCpfPerAnimal = 13000;
+    const double yearlyCpfPerAnimal = BusinessConstants.cpfPerUnit;
     const double monthlyCpfPerAnimal = yearlyCpfPerAnimal / 12;
 
     for (int m = 1; m <= tenureMonths; m++) {
@@ -414,6 +425,18 @@ class EmiNotifier extends ChangeNotifier {
       if (balance < 1e-8) balance = 0;
 
       totalInterestLocal += interestForMonth;
+
+      // CGF Calculation (per unit)
+      double cgfPerUnit = 0;
+      if (cgfEnabled) {
+        for (final birthMonth in calfBirthMonths) {
+          if (m >= birthMonth) {
+            final currentCalfAge = (m - birthMonth) + 1;
+            cgfPerUnit += _getMonthlyCgfForCalfAge(currentCalfAge);
+          }
+        }
+      }
+      final double cgf = cgfPerUnit * unitCount;
 
       // Revenue modelling (scaled by units)
       double revenuePerUnit = 0;
@@ -457,7 +480,7 @@ class EmiNotifier extends ChangeNotifier {
         }
       }
 
-      // Paying EMI + CPF from revenue + loan pool
+      // Paying EMI + CPF + CGF from revenue + loan pool
       double emiFromRevenue = revenue >= emiLocal ? emiLocal : revenue;
       double remainingRevenueAfterEmi = revenue - emiFromRevenue;
       double emiFromLoanPool = 0;
@@ -490,10 +513,35 @@ class EmiNotifier extends ChangeNotifier {
         remainingCpf -= take;
       }
 
-      double loss = remainingEmi + remainingCpf;
+      // CGF Payment (New)
+      double cgfFromRevenue =
+          0; // Not explicitly tracked in model for splits, but implicitly handled in loss/profit
+      double cgfFromLoanPool = 0; // Not explicitly tracked
+      double remainingCgf = cgf;
+
+      // Since CGF is part of "Loss" if not paid, we should try to pay it from Revenue/Pool logic
+      // to keep "profit" correct.
+      // Reuse logic:
+      if (remainingRevenueAfterEmi > 0 && remainingCgf > 0) {
+        final take = remainingRevenueAfterEmi <= remainingCgf
+            ? remainingRevenueAfterEmi
+            : remainingCgf;
+        cgfFromRevenue = take;
+        remainingRevenueAfterEmi -= take;
+        remainingCgf -= take;
+      }
+      if (remainingCgf > 0 && loanPool > 0) {
+        final take = remainingCgf <= loanPool ? remainingCgf : loanPool;
+        cgfFromLoanPool = take;
+        loanPool -= take;
+        remainingCgf -= take;
+      }
+
+      double loss = remainingEmi + remainingCpf + remainingCgf;
       if (loss < 0) loss = 0;
 
-      double profit = revenue - emiFromRevenue - cpfFromRevenue;
+      double profit =
+          remainingRevenueAfterEmi; // Use the decremented remaining variable!
       if (profit < 0) profit = 0;
 
       if (profit > 0) {
@@ -509,10 +557,13 @@ class EmiNotifier extends ChangeNotifier {
           balance: balance,
           revenue: revenue,
           cpf: cpf,
+          cgf: cgf,
           emiFromRevenue: emiFromRevenue,
           emiFromLoanPool: emiFromLoanPool,
           cpfFromRevenue: cpfFromRevenue,
           cpfFromLoanPool: cpfFromLoanPool,
+          cgfFromRevenue: cgfFromRevenue,
+          cgfFromLoanPool: cgfFromLoanPool,
           loanPoolBalance: loanPool,
           profit: profit,
           loss: loss,
@@ -529,6 +580,7 @@ class EmiNotifier extends ChangeNotifier {
     required int tenureMonths,
     required int units,
     required bool cpfEnabled,
+    required bool cgfEnabled,
   }) {
     final schedule = _simulateConfig(
       amount: amount,
@@ -536,6 +588,7 @@ class EmiNotifier extends ChangeNotifier {
       tenureMonths: tenureMonths,
       units: units,
       cpfEnabled: cpfEnabled,
+      cgfEnabled: cgfEnabled,
     );
     return schedule.every((row) => row.loss <= 0.0001);
   }
@@ -545,6 +598,7 @@ class EmiNotifier extends ChangeNotifier {
     required int tenureMonths,
     required int units,
     required bool cpfEnabled,
+    required bool cgfEnabled,
   }) {
     const double maxRate = 36.0;
     const double minRate = 0.0;
@@ -557,11 +611,89 @@ class EmiNotifier extends ChangeNotifier {
         tenureMonths: tenureMonths,
         units: units,
         cpfEnabled: cpfEnabled,
+        cgfEnabled: cgfEnabled,
       )) {
         return r;
       }
     }
     return null;
+  }
+
+  /// Calculates the minimum loan amount required to ensure ZERO monthly loss
+  /// for the given configuration.
+  ///
+  /// Logic:
+  /// 1. Start with Base Capital (Units * UnitCost).
+  /// 2. Simulate.
+  /// 3. If there is a total "From Pocket" loss (deficit), add that deficit
+  ///    to the loan amount (as a buffer).
+  /// 4. Repeat until deficit is negligible or limit reached.
+  double _solveForRequiredLoan({
+    required int units,
+    required double annualRate,
+    required int tenureMonths,
+    required bool cpfEnabled,
+    required bool cgfEnabled,
+  }) {
+    // 0. Safety check to avoid zero/negative units breaking math
+    if (units <= 0) return 350000; // Return base min loan
+
+    // 1. Calculate Base Capital
+    const double perUnitBase = 350000.0;
+    // const double perUnitCpf = 13000.0;
+    const double perUnitCpf = BusinessConstants.cpfPerUnit;
+    final double requiredPerUnit =
+        perUnitBase + (cpfEnabled ? perUnitCpf : 0.0);
+    double loanAmount = requiredPerUnit * units;
+
+    // Cap the maximum loan to avoid "egregious" values (e.g. 2x base)
+    // If we need more than 2x base to be profitable, the project is likely bad.
+    final double maxLoan = loanAmount * 1.5;
+
+    // 2. Iterative Solver
+    // We loop to cover the "interest on the buffer" which appears as new deficit
+    // once we add the initial deficit to the loan.
+    double prevDeficit = double.infinity;
+
+    for (int i = 0; i < 20; i++) {
+      final schedule = _simulateConfig(
+        amount: loanAmount,
+        annualRate: annualRate,
+        tenureMonths: tenureMonths,
+        units: units,
+        cpfEnabled: cpfEnabled,
+        cgfEnabled: cgfEnabled,
+      );
+
+      double totalDeficit = 0;
+      for (final row in schedule) {
+        totalDeficit += row.loss;
+      }
+
+      if (totalDeficit < 100.0) {
+        // Converged
+        break;
+      }
+
+      // Anti-explosion check: if deficit assumes runaway growth, stop.
+      // Or if we hit max loan.
+      if (loanAmount + totalDeficit > maxLoan) {
+        loanAmount = maxLoan;
+        break;
+      }
+      if (totalDeficit > prevDeficit) {
+        // Diverging (Debt Trap): Borrowing more costs more than it saves.
+        // Stop here to avoid explosion.
+        break;
+      }
+
+      prevDeficit = totalDeficit;
+
+      // Add exact deficit to loan amount to cover it
+      loanAmount += totalDeficit;
+    }
+
+    return loanAmount;
   }
 
   /// Computes recommended units & interest for current state such that
@@ -571,9 +703,10 @@ class EmiNotifier extends ChangeNotifier {
     final double amount = _state.amount;
     final int tenureMonths = _state.months;
     final bool cpfOn = _state.cpfEnabled;
+    final bool cgfOn = _state.cgfEnabled;
 
     const double perUnitBase = 350000.0;
-    const double perUnitCpf = 13000.0;
+    const double perUnitCpf = BusinessConstants.cpfPerUnit;
     final double requiredPerUnit = perUnitBase + (cpfOn ? perUnitCpf : 0.0);
 
     int maxUnitsByCapital = requiredPerUnit > 0
@@ -590,6 +723,7 @@ class EmiNotifier extends ChangeNotifier {
         tenureMonths: tenureMonths,
         units: units,
         cpfEnabled: cpfOn,
+        cgfEnabled: cgfOn,
       );
       if (rate != null) {
         bestUnits = units;
@@ -655,9 +789,27 @@ class EmiNotifier extends ChangeNotifier {
   void updateRate(double rate) {
     // Allow any non-negative rate, no minimum 2.5% restriction.
     final adjusted = rate < 0 ? 0.0 : rate;
+
+    // Auto-calculate required buffer loan for this new rate
+    // Auto-calculate required buffer loan for this new rate
+    final requiredAmount = _solveForRequiredLoan(
+      units: _state.units,
+      annualRate: adjusted,
+      tenureMonths: _state.months,
+      cpfEnabled: _state.cpfEnabled,
+      cgfEnabled: _state.cgfEnabled,
+    );
+
+    // Only INCREASE amount if needed to cover new deficit.
+    // If requiredAmount < currentAmount, keep currentAmount (User request).
+    final newAmount = requiredAmount > _state.amount
+        ? requiredAmount
+        : _state.amount;
+
     _state = _state.copyWith(
       rate: adjusted,
-      hasRateError: false, // No error for low rates
+      amount: newAmount,
+      hasRateError: false,
       rateErrorMessage: null,
     );
     _calculate();
@@ -665,27 +817,64 @@ class EmiNotifier extends ChangeNotifier {
   }
 
   void updateUnits(int units) {
-    // Only update units, do NOT auto-update loan amount.
-    // Loan amount and units are independent.
-    _state = _state.copyWith(units: units);
+    final safeUnits = units < 0 ? 0 : units;
+
+    // Auto-calculate required buffer loan based on new units
+    final newAmount = _solveForRequiredLoan(
+      units: safeUnits,
+      annualRate: _state.rate,
+      tenureMonths: _state.months,
+      cpfEnabled: _state.cpfEnabled,
+      cgfEnabled: _state.cgfEnabled,
+    );
+
+    _state = _state.copyWith(
+      units: safeUnits,
+      amount: newAmount, // Update amount
+    );
     _calculate();
     notifyListeners();
   }
 
   void updateCpfEnabled(bool enabled) {
-    _state = _state.copyWith(cpfEnabled: enabled);
-    // CPF affects monthly cashflows (cpf column), so recompute schedule
+    // Auto-calculate required buffer loan with new CPF setting
+    final requiredAmount = _solveForRequiredLoan(
+      units: _state.units,
+      annualRate: _state.rate,
+      tenureMonths: _state.months,
+      cpfEnabled: enabled,
+      cgfEnabled: _state.cgfEnabled,
+    );
+
+    // Only INCREASE amount if needed.
+    final newAmount = requiredAmount > _state.amount
+        ? requiredAmount
+        : _state.amount;
+
+    _state = _state.copyWith(cpfEnabled: enabled, amount: newAmount);
     _calculate();
 
-    // Re-run planner so recommended units/rate respect new CPF setting
-    computeRecommendedPlan();
-    if (_recommendedUnits != null && _recommendedRate != null) {
-      _state = _state.copyWith(
-        units: _recommendedUnits,
-        rate: _recommendedRate,
-      );
-      _calculate();
-    }
+    // No need to run computeRecommendedPlan here because we just forced the plan to be valid via Amount.
+    notifyListeners();
+  }
+
+  void updateCgfEnabled(bool enabled) {
+    // Auto-calculate required buffer loan with new CGF setting
+    final requiredAmount = _solveForRequiredLoan(
+      units: _state.units,
+      annualRate: _state.rate,
+      tenureMonths: _state.months,
+      cpfEnabled: _state.cpfEnabled,
+      cgfEnabled: enabled,
+    );
+
+    // Only INCREASE amount if needed.
+    final newAmount = requiredAmount > _state.amount
+        ? requiredAmount
+        : _state.amount;
+
+    _state = _state.copyWith(cgfEnabled: enabled, amount: newAmount);
+    _calculate();
     notifyListeners();
   }
 
@@ -693,8 +882,25 @@ class EmiNotifier extends ChangeNotifier {
   void updateYears(int years) {
     // clamp between 1 and 60 months
     final clamped = years.clamp(1, 60);
-    _state = _state.copyWith(years: clamped);
+
+    // Auto-calculate required buffer loan with new tenure
+    // Longer tenure might mean lower EMI but prolonged interest.
+    final requiredAmount = _solveForRequiredLoan(
+      units: _state.units,
+      annualRate: _state.rate,
+      tenureMonths: clamped,
+      cpfEnabled: _state.cpfEnabled,
+      cgfEnabled: _state.cgfEnabled,
+    );
+
+    // Only INCREASE amount if needed.
+    final newAmount = requiredAmount > _state.amount
+        ? requiredAmount
+        : _state.amount;
+
+    _state = _state.copyWith(years: clamped, amount: newAmount);
     _calculate();
+    notifyListeners(); // Added missing notifyListeners
   }
 
   void setPaginationLimit(int limit) {
@@ -754,7 +960,9 @@ class EmiNotifier extends ChangeNotifier {
     // Loan pool = surplus loan over required capital
     // -----------------
     const double perUnitBase = 350000.0;
-    const double perUnitCpf = 13000.0;
+    // Revenue/CPF logic
+    // const double perUnitCpf = 13000.0;
+    const double perUnitCpf = BusinessConstants.cpfPerUnit;
 
     final int unitCount = _state.units; // Allow 0
 
@@ -788,8 +996,6 @@ class EmiNotifier extends ChangeNotifier {
     // Predefined timeline for 1 unit (2 buffalo)
     const int orderMonthBuff1 = 1; // Month 1 (e.g., Jan 2026)
     const int orderMonthBuff2 = 7; // Month 7 (e.g., Jul 2026)
-    const int landingBuff1 = 2; // Month 2
-    const int landingBuff2 = 8; // Month 8
 
     // Revenue start months for buffaloes (2 months 0, then pattern)
     const int revenueStartBuff1 = 3; // Month 3
@@ -808,6 +1014,7 @@ class EmiNotifier extends ChangeNotifier {
 
     final List<int> calfRevenueStartMonths = [];
     final List<int> calfCpfStartMonths = [];
+    final List<int> calfBirthMonths = [];
 
     void generateCalvesForBuffalo(int firstBirthMonth) {
       for (
@@ -815,6 +1022,8 @@ class EmiNotifier extends ChangeNotifier {
         birthMonth <= months;
         birthMonth += 12
       ) {
+        calfBirthMonths.add(birthMonth);
+
         // New business rules for calves:
         // - CPF starts from age 25 months (i.e., from the 25th month after birth).
         // - Revenue cycle anchor at age 33 months.
@@ -840,7 +1049,7 @@ class EmiNotifier extends ChangeNotifier {
     generateCalvesForBuffalo(orderMonthBuff2);
 
     // CPF monthly per animal (if enabled)
-    const double yearlyCpfPerAnimal = 13000;
+    const double yearlyCpfPerAnimal = BusinessConstants.cpfPerUnit;
     const double monthlyCpfPerAnimal = yearlyCpfPerAnimal / 12;
 
     for (int m = 1; m <= months; m++) {
@@ -865,9 +1074,30 @@ class EmiNotifier extends ChangeNotifier {
       totalInterest += interestForMonth;
 
       // -----------------
+      // CGF Calculation (per unit)
+      // -----------------
+      double cgfPerUnit = 0;
+      if (_state.cgfEnabled) {
+        for (final birthMonth in calfBirthMonths) {
+          if (m >= birthMonth) {
+            final currentCalfAge = (m - birthMonth) + 1;
+            cgfPerUnit += _getMonthlyCgfForCalfAge(currentCalfAge);
+          }
+        }
+      }
+      final double cgf = cgfPerUnit * unitCount;
+
+      // -----------------
       // Revenue modelling (scaled by units)
       // -----------------
-      final int unitCount = _state.units; // Allow 0
+      // unitCount is already defined at line ~810 or I should move it up.
+      // Actually _calculate defines unitCount at line 810 (in correct scope).
+      // But loop uses it.
+      // Wait, in previous view (Step 3339), unitCount was defined INSIDE the loop at line 921?
+      // Yes: `final int unitCount = _state.units; // Allow 0`
+      // I need to move it out of the loop or ensure it's defined before usage.
+      // I'll declare it outside the loop.
+
       double revenuePerUnit = 0;
 
       // Buffalo revenue (adult animals) – unchanged pattern
@@ -967,14 +1197,34 @@ class EmiNotifier extends ChangeNotifier {
         remainingCpf -= take;
       }
 
-      // Any remainingEmi / remainingCpf at this point means
+      // Then, pay CGF from remaining revenue, then loan pool
+      double cgfFromRevenue = 0;
+      double cgfFromLoanPool = 0;
+      double remainingCgf = cgf;
+
+      if (remainingRevenueAfterEmi > 0 && remainingCgf > 0) {
+        final take = remainingRevenueAfterEmi <= remainingCgf
+            ? remainingRevenueAfterEmi
+            : remainingCgf;
+        cgfFromRevenue = take;
+        remainingRevenueAfterEmi -= take;
+        remainingCgf -= take;
+      }
+      if (remainingCgf > 0 && loanPool > 0) {
+        final take = remainingCgf <= loanPool ? remainingCgf : loanPool;
+        cgfFromLoanPool = take;
+        loanPool -= take;
+        remainingCgf -= take;
+      }
+
+      // Any remainingEmi / remainingCpf / remainingCgf at this point means
       // revenue + loan pool were insufficient and investor must
       // put money from pocket this month.
-      double loss = remainingEmi + remainingCpf;
+      double loss = remainingEmi + remainingCpf + remainingCgf;
       if (loss < 0) loss = 0;
 
       // Investor profit for this month: leftover revenue after covering EMI and CPF
-      double profit = revenue - emiFromRevenue - cpfFromRevenue;
+      double profit = remainingRevenueAfterEmi;
       if (profit < 0) profit = 0;
 
       // REINVESTMENT LOGIC:
@@ -993,10 +1243,13 @@ class EmiNotifier extends ChangeNotifier {
           balance: balance,
           revenue: revenue,
           cpf: cpf,
+          cgf: cgf,
           emiFromRevenue: emiFromRevenue,
           emiFromLoanPool: emiFromLoanPool,
           cpfFromRevenue: cpfFromRevenue,
           cpfFromLoanPool: cpfFromLoanPool,
+          cgfFromRevenue: cgfFromRevenue,
+          cgfFromLoanPool: cgfFromLoanPool,
           loanPoolBalance: loanPool,
           profit: profit,
           loss: loss,
@@ -1044,10 +1297,13 @@ class EmiNotifier extends ChangeNotifier {
       double sumInterest = 0;
       double sumRevenue = 0;
       double sumCpf = 0;
+      double sumCgf = 0;
       double sumEmiFromRevenue = 0;
       double sumEmiFromLoanPool = 0;
       double sumCpfFromRevenue = 0;
       double sumCpfFromLoanPool = 0;
+      double sumCgfFromRevenue = 0;
+      double sumCgfFromLoanPool = 0;
       double sumProfit = 0;
       double sumLoss = 0;
 
@@ -1057,10 +1313,13 @@ class EmiNotifier extends ChangeNotifier {
         sumInterest += row.interest;
         sumRevenue += row.revenue;
         sumCpf += row.cpf;
+        sumCgf += row.cgf;
         sumEmiFromRevenue += row.emiFromRevenue;
         sumEmiFromLoanPool += row.emiFromLoanPool;
         sumCpfFromRevenue += row.cpfFromRevenue;
         sumCpfFromLoanPool += row.cpfFromLoanPool;
+        sumCgfFromRevenue += row.cgfFromRevenue;
+        sumCgfFromLoanPool += row.cgfFromLoanPool;
         sumProfit += row.profit;
         sumLoss += row.loss;
       }
@@ -1077,10 +1336,13 @@ class EmiNotifier extends ChangeNotifier {
           balance: lastRow.balance, // End of year balance
           revenue: sumRevenue,
           cpf: sumCpf,
+          cgf: sumCgf,
           emiFromRevenue: sumEmiFromRevenue,
           emiFromLoanPool: sumEmiFromLoanPool,
           cpfFromRevenue: sumCpfFromRevenue,
           cpfFromLoanPool: sumCpfFromLoanPool,
+          cgfFromRevenue: sumCgfFromRevenue,
+          cgfFromLoanPool: sumCgfFromLoanPool,
           loanPoolBalance: lastRow.loanPoolBalance, // End of year loan pool
           profit: sumProfit,
           loss: sumLoss,
@@ -1099,10 +1361,12 @@ class EmiNotifier extends ChangeNotifier {
         isYearly ? 'Year' : 'Month': row.month,
         isYearly ? 'EMI (Yearly)' : 'EMI (Monthly)': row.emi.round(),
         isYearly ? 'CPF (Yearly)' : 'CPF (Monthly)': row.cpf.round(),
+        isYearly ? 'CGF (Yearly)' : 'CGF (Monthly)': row.cgf.round(),
         'Revenue': row.revenue.round(),
-        'Repayment': (row.emi + row.cpf).round(),
-        'Debit From Balance': (row.emiFromLoanPool + row.cpfFromLoanPool)
-            .round(),
+        'Repayment': (row.emi + row.cpf + row.cgf).round(),
+        'Debit From Balance':
+            (row.emiFromLoanPool + row.cpfFromLoanPool + row.cgfFromLoanPool)
+                .round(),
         'Balance': row.loanPoolBalance.round(),
         'Profit': row.profit.round(),
         'From Pocket': row.loss.round(),

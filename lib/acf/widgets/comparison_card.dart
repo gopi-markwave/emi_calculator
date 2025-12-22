@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../constants/app_constants.dart';
 
 class ComparisonCard extends StatelessWidget {
   final int units;
@@ -300,8 +301,8 @@ class ComparisonCard extends StatelessWidget {
                         children: [
                           TextSpan(
                             text: tenureMonths == 30
-                                ? '$units × 26,000 = '
-                                : '$units × 13,000 = ',
+                                ? '$units × ${_formatCurrency(BusinessConstants.cpfPerUnit * 2).replaceAll('₹', '')} = '
+                                : '$units × ${_formatCurrency(BusinessConstants.cpfPerUnit).replaceAll('₹', '')} = ',
                             style: GoogleFonts.inter(
                               fontSize: 13,
                               color: Colors.grey.shade600,

@@ -8,6 +8,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:syncfusion_flutter_sliders/sliders.dart';
 import 'dart:async';
 import '../providers/emi_provider.dart';
+import '../../constants/app_constants.dart';
 
 class InputCardWidget extends ConsumerStatefulWidget {
   final bool isMobile;
@@ -151,7 +152,7 @@ class _InputCardWidgetState extends ConsumerState<InputCardWidget> {
                 FilteringTextInputFormatter.digitsOnly,
                 IndianNumberFormatter(),
               ],
-              controller: _amountController,  
+              controller: _amountController,
               focusNode: _amountFocus,
               keyboardType: TextInputType.number,
               decoration: InputDecoration(
@@ -160,13 +161,13 @@ class _InputCardWidgetState extends ConsumerState<InputCardWidget> {
                 prefixText: '₹ ',
                 prefixIcon: const Icon(Icons.account_balance),
                 enabledBorder: OutlineInputBorder(
-      borderSide: BorderSide(color: Colors.grey, width: 1.0),
-    ),
-    
-    // 2. Make the "Focused" state look identical to the normal state
-    focusedBorder: OutlineInputBorder(
-      borderSide: BorderSide(color: Colors.grey, width: 1.0),
-    ),
+                  borderSide: BorderSide(color: Colors.grey, width: 1.0),
+                ),
+
+                // 2. Make the "Focused" state look identical to the normal state
+                focusedBorder: OutlineInputBorder(
+                  borderSide: BorderSide(color: Colors.grey, width: 1.0),
+                ),
                 errorText: emiNotifier.hasAmountError
                     ? emiNotifier.amountErrorMessage
                     : null,
@@ -193,7 +194,7 @@ class _InputCardWidgetState extends ConsumerState<InputCardWidget> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '₹13,000 per unit',
+                        '₹${BusinessConstants.cpfPerUnit.toInt()} per unit',
                         style: GoogleFonts.inter(
                           fontSize: 12,
                           color: Colors.grey.shade600,
@@ -206,6 +207,43 @@ class _InputCardWidgetState extends ConsumerState<InputCardWidget> {
                   value: emiNotifier.cpfEnabled,
                   onChanged: (v) {
                     emiNotifier.updateCpfEnabled(v);
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // CGF switch
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'CGF (Cattle Growth Fund)',
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.grey.shade700,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Maintenance charge for calves',
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Switch(
+                  value: emiNotifier.cgfEnabled,
+                  onChanged: (v) {
+                    emiNotifier.updateCgfEnabled(v);
                   },
                 ),
               ],
@@ -234,7 +272,7 @@ class _InputCardWidgetState extends ConsumerState<InputCardWidget> {
                     child: Builder(
                       builder: (context) {
                         const double unitCost = 350000.0;
-                        const double cpfCost = 13000.0;
+                        const double cpfCost = BusinessConstants.cpfPerUnit;
                         final int units = emiNotifier.units;
                         final bool cpfEnabled = emiNotifier.cpfEnabled;
 
@@ -242,6 +280,7 @@ class _InputCardWidgetState extends ConsumerState<InputCardWidget> {
                         final double totalCpfCost = cpfEnabled
                             ? (cpfCost * units)
                             : 0;
+
                         final double grandTotal = totalUnitCost + totalCpfCost;
                         final double surplus = emiNotifier.amount - grandTotal;
 
@@ -413,8 +452,8 @@ class _InputCardWidgetState extends ConsumerState<InputCardWidget> {
                     Text(
                       emiNotifier.cpfEnabled
                           ? '${emiNotifier.units} unit${emiNotifier.units > 1 ? 's' : ''} = '
-                                '₹${(350000 + 13000) * emiNotifier.units} '
-                                '(₹3,50,000 + ₹13,000 CPF per unit)'
+                                '₹${(350000 + BusinessConstants.cpfPerUnit) * emiNotifier.units} '
+                                '(₹3,50,000 + ₹${BusinessConstants.cpfPerUnit.toInt()} CPF per unit)'
                           : '${emiNotifier.units} unit${emiNotifier.units > 1 ? 's' : ''} = '
                                 '₹${350000 * emiNotifier.units} '
                                 '(₹3,50,000 per unit)',
@@ -522,27 +561,34 @@ class InterestRateField extends ConsumerStatefulWidget {
 
 class _InterestRateFieldState extends ConsumerState<InterestRateField> {
   late TextEditingController _controller;
+  Timer? _debounce;
+  final FocusNode _focusNode = FocusNode();
 
   @override
   void initState() {
     super.initState();
     _controller = TextEditingController(text: widget.value.toString());
+    _focusNode.addListener(() {
+      if (!_focusNode.hasFocus) {
+        // Reset to actual value on blur to ensure consistency
+        _controller.text = widget.value.toString();
+      }
+    });
   }
 
   @override
   void didUpdateWidget(InterestRateField oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.value != oldWidget.value) {
+    if (widget.value != oldWidget.value && !_focusNode.hasFocus) {
       _controller.text = widget.value.toString();
-      _controller.selection = TextSelection.collapsed(
-        offset: _controller.text.length,
-      );
     }
   }
 
   @override
   void dispose() {
     _controller.dispose();
+    _debounce?.cancel();
+    _focusNode.dispose();
     super.dispose();
   }
 
@@ -564,17 +610,21 @@ class _InterestRateFieldState extends ConsumerState<InterestRateField> {
         const SizedBox(height: 8),
         TextField(
           controller: _controller,
+          focusNode: _focusNode,
           keyboardType: TextInputType.numberWithOptions(decimal: true),
           inputFormatters: [
             FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
           ],
           onChanged: (text) {
-            if (text.isEmpty) {
-              widget.onChanged(0);
-              return;
-            }
-            double rate = double.tryParse(text) ?? 0;
-            widget.onChanged(rate);
+            if (_debounce?.isActive ?? false) _debounce!.cancel();
+            _debounce = Timer(const Duration(milliseconds: 500), () {
+              if (text.isEmpty) {
+                widget.onChanged(0);
+                return;
+              }
+              double rate = double.tryParse(text) ?? 0;
+              widget.onChanged(rate);
+            });
           },
           decoration: InputDecoration(
             suffixText: "%",

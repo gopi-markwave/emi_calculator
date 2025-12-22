@@ -16,6 +16,7 @@ class EmiDetails {
   final String? rateErrorMessage;
   final int units;
   final bool cpfEnabled;
+  final bool cgfEnabled;
 
   EmiDetails({
     required this.amount,
@@ -32,6 +33,7 @@ class EmiDetails {
     this.rateErrorMessage,
     this.units = 1,
     this.cpfEnabled = false,
+    this.cgfEnabled = false,
   });
 
   EmiDetails copyWith({
@@ -49,6 +51,7 @@ class EmiDetails {
     String? rateErrorMessage,
     int? units,
     bool? cpfEnabled,
+    bool? cgfEnabled,
   }) {
     return EmiDetails(
       amount: amount ?? this.amount,
@@ -65,6 +68,7 @@ class EmiDetails {
       rateErrorMessage: rateErrorMessage ?? this.rateErrorMessage,
       units: units ?? this.units,
       cpfEnabled: cpfEnabled ?? this.cpfEnabled,
+      cgfEnabled: cgfEnabled ?? this.cgfEnabled,
     );
   }
 }

@@ -14,6 +14,9 @@ class EmiScheduleRow {
   /// Monthly CPF charged this month (sum over all animals)
   final double cpf;
 
+  /// Monthly CGF charged this month (sum over all calves 0-36m)
+  final double cgf;
+
   /// How much of EMI was funded from revenue vs loan pool
   final double emiFromRevenue;
   final double emiFromLoanPool;
@@ -21,6 +24,10 @@ class EmiScheduleRow {
   /// How much of CPF was funded from revenue vs loan pool
   final double cpfFromRevenue;
   final double cpfFromLoanPool;
+
+  /// How much of CGF was funded from revenue vs loan pool
+  final double cgfFromRevenue;
+  final double cgfFromLoanPool;
 
   /// Remaining loan pool after paying EMI + CPF this month
   final double loanPoolBalance;
@@ -42,10 +49,13 @@ class EmiScheduleRow {
     required this.balance,
     required this.revenue,
     required this.cpf,
+    required this.cgf,
     required this.emiFromRevenue,
     required this.emiFromLoanPool,
     required this.cpfFromRevenue,
     required this.cpfFromLoanPool,
+    required this.cgfFromRevenue,
+    required this.cgfFromLoanPool,
     required this.loanPoolBalance,
     required this.profit,
     required this.loss,

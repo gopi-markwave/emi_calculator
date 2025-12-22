@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import 'package:flutter_animate/flutter_animate.dart';
 import '../providers/emi_provider.dart';
+import '../../constants/app_constants.dart';
 
 class ResultCardWidget extends ConsumerWidget {
   final bool isMobile;
@@ -16,7 +17,9 @@ class ResultCardWidget extends ConsumerWidget {
     final emiNotifier = ref.watch(emiProvider);
     // Required capital based on units and CPF
     final perUnitBase = 350000.0;
-    final perUnitCpf = emiNotifier.cpfEnabled ? 13000.0 : 0.0;
+    final perUnitCpf = emiNotifier.cpfEnabled
+        ? BusinessConstants.cpfPerUnit
+        : 0.0;
     final requiredCapital = (perUnitBase + perUnitCpf) * emiNotifier.units;
     final shortfall = requiredCapital - emiNotifier.amount;
     final hasShortfall = shortfall > 0;
@@ -162,7 +165,7 @@ class ResultCardWidget extends ConsumerWidget {
                     ResultRow(
                       label: 'Year 2+ Monthly CPF',
                       value: emiNotifier.formatCurrency(
-                        (13000 / 12) *
+                        (BusinessConstants.cpfPerUnit / 12) *
                             (emiNotifier.units > 0 ? emiNotifier.units : 1),
                       ),
                       icon: Icons.shield_moon_outlined,

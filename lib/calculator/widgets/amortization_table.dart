@@ -40,6 +40,7 @@ class _AmortizationTableState extends ConsumerState<AmortizationTable> {
     // Precompute totals for footer
     double totalEmi = 0;
     double totalCpf = 0;
+    double totalCgf = 0;
     double totalPayment = 0;
     double totalRevenue = 0;
     double totalProfit = 0;
@@ -47,7 +48,8 @@ class _AmortizationTableState extends ConsumerState<AmortizationTable> {
     for (final row in displaySchedule) {
       totalEmi += row.emi;
       totalCpf += row.cpf;
-      totalPayment += row.emi + row.cpf;
+      totalCgf += row.cgf;
+      totalPayment += row.emi + row.cpf + row.cgf;
       totalRevenue += row.revenue;
       totalProfit += row.profit;
       totalLoss += row.loss;
@@ -228,6 +230,12 @@ class _AmortizationTableState extends ConsumerState<AmortizationTable> {
                           ),
                         ),
                         GridColumn(
+                          columnName: 'cgf',
+                          label: _buildHeader(
+                            isYearly ? "CGF (Yearly)" : "CGF (Monthly)",
+                          ),
+                        ),
+                        GridColumn(
                           columnName: 'revenue',
                           label: _buildHeader("Revenue"),
                         ),
@@ -280,6 +288,7 @@ class _AmortizationTableState extends ConsumerState<AmortizationTable> {
               totalPayment,
               totalEmi,
               totalCpf,
+              totalCgf,
               totalRevenue,
               totalProfit,
               totalLoss,
@@ -299,6 +308,7 @@ class _AmortizationTableState extends ConsumerState<AmortizationTable> {
     double totalPayment,
     double totalEmi,
     double totalCpf,
+    double totalCgf,
     double totalRevenue,
     double totalProfit,
     double totalLoss,
@@ -346,6 +356,13 @@ class _AmortizationTableState extends ConsumerState<AmortizationTable> {
         value: totalCpf,
         color: Colors.amber.shade700,
         icon: Icons.pets,
+        width: cardWidth,
+      ),
+      _buildTotalCard(
+        title: 'Total CGF',
+        value: totalCgf,
+        color: Colors.brown.shade600,
+        icon: Icons.grass, // Grass/Feed icon for CGF
         width: cardWidth,
       ),
       _buildTotalCard(
@@ -583,11 +600,16 @@ class AmortizationDataSource extends DataGridSource {
           DataGridCell<int>(columnName: 'month', value: row.month),
           DataGridCell<double>(columnName: 'emi', value: row.emi),
           DataGridCell<double>(columnName: 'cpf', value: row.cpf),
+          DataGridCell<double>(columnName: 'cgf', value: row.cgf),
           DataGridCell<double>(columnName: 'revenue', value: row.revenue),
-          DataGridCell<double>(columnName: 'payment', value: row.emi + row.cpf),
+          DataGridCell<double>(
+            columnName: 'payment',
+            value: row.emi + row.cpf + row.cgf,
+          ),
           DataGridCell<double>(
             columnName: 'loanCut',
-            value: row.emiFromLoanPool + row.cpfFromLoanPool,
+            value:
+                row.emiFromLoanPool + row.cpfFromLoanPool + row.cgfFromLoanPool,
           ),
           DataGridCell<double>(
             columnName: 'loanBalance',

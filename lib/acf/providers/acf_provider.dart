@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../models/acf_schedule_row.dart';
+import '../../constants/app_constants.dart';
 
 final acfProvider = ChangeNotifierProvider<AcfNotifier>((ref) {
   return AcfNotifier();
@@ -19,7 +20,7 @@ class AcfState {
     this.tenureMonths = 30,
     this.marketUnitValue = 350000,
     this.cpfYearlyCostPerUnit = 26000,
-    this.projectionYear = 3, // Default 3 years
+    this.projectionYear = 1, // Default 1 year
   });
 
   AcfState copyWith({int? units, int? projectionYear, int? tenureMonths}) {
@@ -56,7 +57,7 @@ class AcfNotifier extends ChangeNotifier {
   // 30 Months: 2 buffaloes free for 1 year (13k * 2 = 26k per unit)
   // 11 Months: 1 buffalo free for 1 year (13k * 1 = 13k per unit)
   double get cpfBenefit {
-    final perCpfValue = 13000.0;
+    final perCpfValue = BusinessConstants.cpfPerUnit;
     final benefitMultiplier = _state.tenureMonths == 11 ? 1 : 2;
     return _state.units * perCpfValue * benefitMultiplier;
   }
