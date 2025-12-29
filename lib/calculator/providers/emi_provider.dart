@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:emi_calculator/calculator/models/emi_details.dart';
 import 'package:emi_calculator/calculator/models/emi_schedule_row.dart';
@@ -55,6 +56,8 @@ class EmiNotifier extends ChangeNotifier {
   double get totalLoss =>
       _state.schedule.fold(0, (sum, item) => sum + item.loss);
   double get totalNetCash => totalProfit - totalLoss;
+  double get totalCpf => _state.schedule.fold(0, (sum, item) => sum + item.cpf);
+  double get totalCgf => _state.schedule.fold(0, (sum, item) => sum + item.cgf);
 
   // Asset values fetched from API
   List<Map<String, dynamic>> _assetValuesList = [];
@@ -78,8 +81,9 @@ class EmiNotifier extends ChangeNotifier {
     // CPF = 300 * 2 * units
     double currentCpf = 0;
     if (cpfEnabled) {
-      // 300 per buffalo per month. 2 buffaloes per unit.
-      currentCpf = 300.0 * 2 * (units == 0 ? 1 : units);
+      // Use centralized constant (per unit cost / 12 months)
+      currentCpf =
+          (BusinessConstants.cpfPerUnit / 12) * (units == 0 ? 1 : units);
     }
     return emi + currentCpf;
   }
@@ -321,7 +325,7 @@ class EmiNotifier extends ChangeNotifier {
     if (age <= 12) return 0; // 0-12 months free
     if (age <= 18) return 1000; // 13-18 months: 1000/mo (6000 total)
     if (age <= 24) return 1400; // 19-24 months: 1400/mo (8400 total)
-    if (age <= 30) return 1750; // 25-30 months: 1750/mo (10500 total)
+    if (age <= 30) return 1800; // 25-30 months: 1750/mo (10500 total)
     if (age <= 36) return 2500; // 31-36 months: 2500/mo (15000 total)
     return 0;
   }
@@ -343,12 +347,12 @@ class EmiNotifier extends ChangeNotifier {
     if (monthlyRate == 0) {
       emiLocal = principal / (tenureMonths > 0 ? tenureMonths : 1);
     } else {
-      final powFactor = (1 + monthlyRate).pow(tenureMonths);
+      final powFactor = math.pow(1 + monthlyRate, tenureMonths) as double;
       emiLocal = principal * monthlyRate * powFactor / (powFactor - 1);
     }
 
     double balance = principal;
-    double totalInterestLocal = 0;
+    // double totalInterestLocal = 0; // Unused
     final List<EmiScheduleRow> scheduleList = [];
 
     const double perUnitBase = 350000.0;
@@ -383,30 +387,39 @@ class EmiNotifier extends ChangeNotifier {
 
     final List<int> calfRevenueStartMonths = [];
     final List<int> calfCpfStartMonths = [];
-    final List<int> calfBirthMonths = [];
+    final List<int> allBirthMonths = []; // Renamed from calfBirthMonths
 
-    void trackCalfBirths(int firstBirthMonth) {
-      for (
-        int birthMonth = firstBirthMonth;
-        birthMonth <= tenureMonths;
-        birthMonth += 12
-      ) {
-        calfBirthMonths.add(birthMonth);
+    void trackDirectAndGrandBirths(int firstBirthMonth) {
+      // 1. Direct Births
+      for (int bm = firstBirthMonth; bm <= tenureMonths; bm += 12) {
+        allBirthMonths.add(bm);
 
-        final int cpfStartMonth = birthMonth + 24;
-        if (cpfStartMonth <= tenureMonths) {
-          calfCpfStartMonths.add(cpfStartMonth);
+        // CPF Start (Direct)
+        final int cpfStart = bm + 24;
+        if (cpfStart <= tenureMonths) {
+          calfCpfStartMonths.add(cpfStart);
         }
 
-        final int revenueBaseMonth = birthMonth + 33;
-        if (revenueBaseMonth <= tenureMonths) {
-          calfRevenueStartMonths.add(revenueBaseMonth);
+        // Revenue Start (Direct)
+        final int revStart = bm + 33;
+        if (revStart <= tenureMonths) {
+          calfRevenueStartMonths.add(revStart);
+        }
+
+        // 2. Grand Births (Gen 2: Born from this calf)
+        // Starts 36 months after birth
+        final int firstGrandBaby = bm + 36;
+        if (firstGrandBaby <= tenureMonths) {
+          for (int gb = firstGrandBaby; gb <= tenureMonths; gb += 12) {
+            // print('Grand calf born at $gb from mom born at $bm');
+            allBirthMonths.add(gb);
+          }
         }
       }
     }
 
-    trackCalfBirths(orderMonthBuff1);
-    trackCalfBirths(orderMonthBuff2);
+    trackDirectAndGrandBirths(orderMonthBuff1);
+    trackDirectAndGrandBirths(orderMonthBuff2);
 
     const double yearlyCpfPerAnimal = BusinessConstants.cpfPerUnit;
     const double monthlyCpfPerAnimal = yearlyCpfPerAnimal / 12;
@@ -424,14 +437,14 @@ class EmiNotifier extends ChangeNotifier {
       balance -= principalForMonth;
       if (balance < 1e-8) balance = 0;
 
-      totalInterestLocal += interestForMonth;
+      // totalInterestLocal += interestForMonth;
 
       // CGF Calculation (per unit)
       double cgfPerUnit = 0;
       if (cgfEnabled) {
-        for (final birthMonth in calfBirthMonths) {
+        for (final birthMonth in allBirthMonths) {
           if (m >= birthMonth) {
-            final currentCalfAge = (m - birthMonth) + 1;
+            final int currentCalfAge = (m - birthMonth) + 1;
             cgfPerUnit += _getMonthlyCgfForCalfAge(currentCalfAge);
           }
         }
@@ -640,15 +653,19 @@ class EmiNotifier extends ChangeNotifier {
 
     // 1. Calculate Base Capital
     const double perUnitBase = 350000.0;
-    // const double perUnitCpf = 13000.0;
     const double perUnitCpf = BusinessConstants.cpfPerUnit;
     final double requiredPerUnit =
         perUnitBase + (cpfEnabled ? perUnitCpf : 0.0);
-    double loanAmount = requiredPerUnit * units;
 
-    // Cap the maximum loan to avoid "egregious" values (e.g. 2x base)
-    // If we need more than 2x base to be profitable, the project is likely bad.
-    final double maxLoan = loanAmount * 1.5;
+    // Base capital needed just to buy assets (and upfront CPF if enabled)
+    double loanAmount = requiredPerUnit * units;
+    final double baseRequired = loanAmount;
+
+    // Cap the maximum loan relative to the base requirement to avoid runaway
+    // loops, but effectively keep it "dynamic" for large unit counts.
+    // e.g. allow up to 50x base capital, which is far beyond any realistic need
+    // while still providing a hard safety ceiling.
+    final double maxLoan = baseRequired * 50;
 
     // 2. Iterative Solver
     // We loop to cover the "interest on the buffer" which appears as new deficit
@@ -667,10 +684,11 @@ class EmiNotifier extends ChangeNotifier {
 
       double totalDeficit = 0;
       for (final row in schedule) {
+        // Checking for every month as requested.
         totalDeficit += row.loss;
       }
 
-      if (totalDeficit < 100.0) {
+      if (totalDeficit < 1.0) {
         // Converged
         break;
       }
@@ -681,6 +699,7 @@ class EmiNotifier extends ChangeNotifier {
         loanAmount = maxLoan;
         break;
       }
+
       if (totalDeficit > prevDeficit) {
         // Diverging (Debt Trap): Borrowing more costs more than it saves.
         // Stop here to avoid explosion.
@@ -692,8 +711,65 @@ class EmiNotifier extends ChangeNotifier {
       // Add exact deficit to loan amount to cover it
       loanAmount += totalDeficit;
     }
-
     return loanAmount;
+  }
+
+  /// Finds the best (Loan, Rate) combination to cover deficits.
+  /// Priority:
+  /// 1. Try to maintain current Loan Amount by lowering Interest Rate (down to 9%).
+  /// 2. If Rate hits 9% and deficit persists, Increase Loan Amount.
+  ({double amount, double rate}) _solveForSustainableConfig({
+    required int units,
+    required double currentRate,
+    required double currentAmount,
+    required int tenureMonths,
+    required bool cpfEnabled,
+    required bool cgfEnabled,
+  }) {
+    // 1. Calculate Required Loan at CURRENT Rate
+    double requiredAtCurrent = _solveForRequiredLoan(
+      units: units,
+      annualRate: currentRate,
+      tenureMonths: tenureMonths,
+      cpfEnabled: cpfEnabled,
+      cgfEnabled: cgfEnabled,
+    );
+
+    // If current amount sufficient, just return current config (no change needed)
+    if (requiredAtCurrent <= currentAmount) {
+      return (amount: currentAmount, rate: currentRate);
+    }
+
+    // 2. If we need more money, try LOWERING the rate first.
+    // Iterate from Current Rate down to 9.0%
+    double bestRate = currentRate;
+    double requiredAtBest = requiredAtCurrent;
+
+    // We can jump straight to 9% to check if it's even possible,
+    // but stepping allows us to stop at e.g. 15% if that's enough.
+    // Let's step by 0.5%
+    for (double r = currentRate - 0.5; r >= 9.0; r -= 0.5) {
+      double required = _solveForRequiredLoan(
+        units: units,
+        annualRate: r,
+        tenureMonths: tenureMonths,
+        cpfEnabled: cpfEnabled,
+        cgfEnabled: cgfEnabled,
+      );
+
+      if (required <= currentAmount) {
+        // Found a rate where current loan is sufficient!
+        return (amount: currentAmount, rate: r);
+      }
+
+      bestRate = r;
+      requiredAtBest = required;
+    }
+
+    // 3. If we hit 9% (bestRate) and still need more loan (requiredAtBest > currentAmount),
+    // we must increase the loan.
+    // Return the required loan at 9% rate.
+    return (amount: requiredAtBest, rate: bestRate);
   }
 
   /// Computes recommended units & interest for current state such that
@@ -748,6 +824,23 @@ class EmiNotifier extends ChangeNotifier {
   int _paginationLimit = 12;
 
   EmiNotifier() {
+    // Validating default state on load:
+    // Ensure the initial 4,00,000 matches the sustainable requirement for default params.
+    final sustainable = _solveForSustainableConfig(
+      units: _state.units,
+      currentRate: _state.rate,
+      currentAmount: _state.amount,
+      tenureMonths: _state.months, // 60
+      cpfEnabled: _state.cpfEnabled,
+      cgfEnabled: _state.cgfEnabled,
+    );
+
+    // Update state with calculated sustainable values (even if they match)
+    _state = _state.copyWith(
+      amount: sustainable.amount,
+      rate: sustainable.rate,
+    );
+
     _calculate();
 
     // optimized initial plan. 19-12-25. edited by gopi
@@ -765,24 +858,28 @@ class EmiNotifier extends ChangeNotifier {
   //       UPDATE METHODS
   // -----------------------------
   void updateAmount(double amount) {
-    // Always update amount and calculate, removing minimum restriction
+    // Treat the user-entered amount as a MINIMUM desired loan.
+    final desired = amount < 0 ? 0.0 : amount;
+
+    // Use sustainable config solver so that if more capital is required to
+    // avoid any loss, the amount is automatically increased (and rate lowered
+    // if possible) until the schedule is self-sustaining.
+    final result = _solveForSustainableConfig(
+      units: _state.units,
+      currentRate: _state.rate,
+      currentAmount: desired,
+      tenureMonths: _state.months,
+      cpfEnabled: _state.cpfEnabled,
+      cgfEnabled: _state.cgfEnabled,
+    );
+
     _state = _state.copyWith(
-      amount: amount,
+      amount: result.amount,
+      rate: result.rate,
       hasAmountError: false,
       amountErrorMessage: null,
     );
     _calculate();
-
-    // After recalculation, auto-compute and apply a self-sustaining plan
-    // based on the new loan amount (if possible).
-    computeRecommendedPlan();
-    if (_recommendedUnits != null && _recommendedRate != null) {
-      _state = _state.copyWith(
-        units: _recommendedUnits,
-        rate: _recommendedRate,
-      );
-      _calculate();
-    }
     notifyListeners();
   }
 
@@ -819,10 +916,19 @@ class EmiNotifier extends ChangeNotifier {
   void updateUnits(int units) {
     final safeUnits = units < 0 ? 0 : units;
 
-    // Auto-calculate required buffer loan based on new units
-    final newAmount = _solveForRequiredLoan(
+    // For units change, we recalculate everything fresh from current rate
+    // But we still apply the logic: if we need more money, try lowering rate?
+    // User said "units will have the same logic i think..."
+    final result = _solveForSustainableConfig(
       units: safeUnits,
-      annualRate: _state.rate,
+      currentRate: _state.rate,
+      currentAmount: _state.amount, // Or should we reset amount based on units?
+      // Usually units change implies fundamental scale change.
+      // But let's respect "try to keep params if possible"?
+      // Actually, if units double, amount MUST double.
+      // Passing _state.amount (e.g. 4L) for 2 units (need 7L) will force huge Loan Increase.
+      // Rate reduction can't save 4L -> 7L jump.
+      // So this is fine. It will return (Required, 9%) or (Required, Current).
       tenureMonths: _state.months,
       cpfEnabled: _state.cpfEnabled,
       cgfEnabled: _state.cgfEnabled,
@@ -830,28 +936,29 @@ class EmiNotifier extends ChangeNotifier {
 
     _state = _state.copyWith(
       units: safeUnits,
-      amount: newAmount, // Update amount
+      amount: result.amount,
+      rate: result.rate,
     );
     _calculate();
     notifyListeners();
   }
 
   void updateCpfEnabled(bool enabled) {
-    // Auto-calculate required buffer loan with new CPF setting
-    final requiredAmount = _solveForRequiredLoan(
+    // Use sustainable config solver (Rate first, then Loan)
+    final result = _solveForSustainableConfig(
       units: _state.units,
-      annualRate: _state.rate,
-      tenureMonths: _state.months,
+      currentRate: _state.rate,
+      currentAmount: _state.amount,
+      tenureMonths: _state.months, // tenure doesn't change here
       cpfEnabled: enabled,
       cgfEnabled: _state.cgfEnabled,
     );
 
-    // Only INCREASE amount if needed.
-    final newAmount = requiredAmount > _state.amount
-        ? requiredAmount
-        : _state.amount;
-
-    _state = _state.copyWith(cpfEnabled: enabled, amount: newAmount);
+    _state = _state.copyWith(
+      cpfEnabled: enabled,
+      amount: result.amount,
+      rate: result.rate,
+    );
     _calculate();
 
     // No need to run computeRecommendedPlan here because we just forced the plan to be valid via Amount.
@@ -859,21 +966,24 @@ class EmiNotifier extends ChangeNotifier {
   }
 
   void updateCgfEnabled(bool enabled) {
-    // Auto-calculate required buffer loan with new CGF setting
-    final requiredAmount = _solveForRequiredLoan(
+    // Make CGF toggle-able as requested
+    final bool cgfOn = enabled;
+
+    // Use sustainable config solver (Rate first, then Loan)
+    final result = _solveForSustainableConfig(
       units: _state.units,
-      annualRate: _state.rate,
+      currentRate: _state.rate,
+      currentAmount: _state.amount,
       tenureMonths: _state.months,
       cpfEnabled: _state.cpfEnabled,
-      cgfEnabled: enabled,
+      cgfEnabled: cgfOn,
     );
 
-    // Only INCREASE amount if needed.
-    final newAmount = requiredAmount > _state.amount
-        ? requiredAmount
-        : _state.amount;
-
-    _state = _state.copyWith(cgfEnabled: enabled, amount: newAmount);
+    _state = _state.copyWith(
+      cgfEnabled: cgfOn,
+      amount: result.amount,
+      rate: result.rate,
+    );
     _calculate();
     notifyListeners();
   }
@@ -883,22 +993,21 @@ class EmiNotifier extends ChangeNotifier {
     // clamp between 1 and 60 months
     final clamped = years.clamp(1, 60);
 
-    // Auto-calculate required buffer loan with new tenure
-    // Longer tenure might mean lower EMI but prolonged interest.
-    final requiredAmount = _solveForRequiredLoan(
+    // Use sustainable config solver (Rate first, then Loan)
+    final result = _solveForSustainableConfig(
       units: _state.units,
-      annualRate: _state.rate,
+      currentRate: _state.rate,
+      currentAmount: _state.amount,
       tenureMonths: clamped,
       cpfEnabled: _state.cpfEnabled,
       cgfEnabled: _state.cgfEnabled,
     );
 
-    // Only INCREASE amount if needed.
-    final newAmount = requiredAmount > _state.amount
-        ? requiredAmount
-        : _state.amount;
-
-    _state = _state.copyWith(years: clamped, amount: newAmount);
+    _state = _state.copyWith(
+      years: clamped,
+      amount: result.amount,
+      rate: result.rate,
+    );
     _calculate();
     notifyListeners(); // Added missing notifyListeners
   }
@@ -947,7 +1056,7 @@ class EmiNotifier extends ChangeNotifier {
     } else {
       // Standard Reducing Balance Formula:
       // EMI = P * r * (1 + r)^n / ((1 + r)^n - 1)
-      final powFactor = (1 + monthlyRate).pow(months);
+      final powFactor = math.pow(1 + monthlyRate, months) as double;
       emi = principal * monthlyRate * powFactor / (powFactor - 1);
     }
 
@@ -1363,7 +1472,7 @@ class EmiNotifier extends ChangeNotifier {
         isYearly ? 'CPF (Yearly)' : 'CPF (Monthly)': row.cpf.round(),
         isYearly ? 'CGF (Yearly)' : 'CGF (Monthly)': row.cgf.round(),
         'Revenue': row.revenue.round(),
-        'Repayment': (row.emi + row.cpf + row.cgf).round(),
+        'Payment': (row.emi + row.cpf + row.cgf).round(),
         'Debit From Balance':
             (row.emiFromLoanPool + row.cpfFromLoanPool + row.cgfFromLoanPool)
                 .round(),
@@ -1379,15 +1488,5 @@ class EmiNotifier extends ChangeNotifier {
       fileName:
           'EMI_Schedule_${isYearly ? "Yearly" : "Monthly"}_${DateTime.now().millisecondsSinceEpoch}',
     );
-  }
-}
-
-extension DoublePow on double {
-  double pow(int n) {
-    double result = 1.0;
-    for (int i = 0; i < n; i++) {
-      result *= this;
-    }
-    return result;
   }
 }

@@ -213,42 +213,6 @@ class _InputCardWidgetState extends ConsumerState<InputCardWidget> {
             ),
             const SizedBox(height: 16),
 
-            // CGF switch
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'CGF (Cattle Growth Fund)',
-                        style: GoogleFonts.inter(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.grey.shade700,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Maintenance charge for calves',
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          color: Colors.grey.shade600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Switch(
-                  value: emiNotifier.cgfEnabled,
-                  onChanged: (v) {
-                    emiNotifier.updateCgfEnabled(v);
-                  },
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
 
             // Loan Breakdown Info
             Container(

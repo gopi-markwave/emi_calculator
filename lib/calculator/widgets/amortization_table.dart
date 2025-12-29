@@ -38,23 +38,28 @@ class _AmortizationTableState extends ConsumerState<AmortizationTable> {
         : fullSchedule.take(limit).toList();
 
     // Precompute totals for footer
-    double totalEmi = 0;
-    double totalCpf = 0;
-    double totalCgf = 0;
-    double totalPayment = 0;
-    double totalRevenue = 0;
-    double totalProfit = 0;
-    double totalLoss = 0;
-    for (final row in displaySchedule) {
-      totalEmi += row.emi;
-      totalCpf += row.cpf;
-      totalCgf += row.cgf;
-      totalPayment += row.emi + row.cpf + row.cgf;
-      totalRevenue += row.revenue;
-      totalProfit += row.profit;
-      totalLoss += row.loss;
-    }
-    final double totalNetCash = totalProfit - totalLoss;
+    // Use provider getters for Project Lifetime Totals
+    // Better to use actual schedule sums from provider if available or calc from full list
+    // Actually, let's use the full schedule for totals to be accurate
+    // Or use the new getters I added to EmiNotifier
+    final double totalCpf = emiNotifier.totalCpf;
+    final double totalCgf = emiNotifier.totalCgf;
+    final double totalRevenue = emiNotifier.totalRevenue;
+    final double totalProfit = emiNotifier.totalProfit;
+    final double totalLoss = emiNotifier.totalLoss;
+    final double totalNetCash = emiNotifier.totalNetCash;
+
+    // Total Payment = EMI + CPF + CGF
+    // Note: emiNotifier.totalPayment might just be loan repayment.
+    // Let's sum it up safely or use provider if consistent.
+    final double totalPayment = emiNotifier.schedule.fold(
+      0.0,
+      (sum, row) => sum + row.emi + row.cpf + row.cgf,
+    );
+    final double totalEmiOnly = emiNotifier.schedule.fold(
+      0.0,
+      (sum, row) => sum + row.emi,
+    );
 
     // Create data source
     // Pass isYearly flag to help format "Month" column as "Year X"
@@ -241,9 +246,7 @@ class _AmortizationTableState extends ConsumerState<AmortizationTable> {
                         ),
                         GridColumn(
                           columnName: 'payment',
-                          label: _buildHeader(
-                            isYearly ? "Repayment" : "Repayment",
-                          ),
+                          label: _buildHeader(isYearly ? "Payment" : "Payment"),
                         ),
                         GridColumn(
                           columnName: 'loanCut',
@@ -286,7 +289,7 @@ class _AmortizationTableState extends ConsumerState<AmortizationTable> {
               constraints,
               emiNotifier,
               totalPayment,
-              totalEmi,
+              totalEmiOnly,
               totalCpf,
               totalCgf,
               totalRevenue,
