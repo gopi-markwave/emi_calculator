@@ -961,10 +961,14 @@ class EmiNotifier extends ChangeNotifier {
   }
 
   void updateCpfEnabled(bool enabled) {
+    // Attempt to restore rate to at least 18% if the toggled state allows it.
+    // If enabling CPF makes it harder, it will lower. If disabling makes it easier, it will raise.
+    final double targetRate = _state.rate < 18.0 ? 18.0 : _state.rate;
+
     // Use sustainable config solver (Rate first, then Loan)
     final result = _solveForSustainableConfig(
       units: _state.units,
-      currentRate: _state.rate,
+      currentRate: targetRate, // Try to fetch high rate first
       currentAmount: _state.amount,
       tenureMonths: _state.months, // tenure doesn't change here
       cpfEnabled: enabled,
