@@ -861,11 +861,23 @@ class EmiNotifier extends ChangeNotifier {
     // Treat the user-entered amount as a MINIMUM desired loan.
     final desired = amount < 0 ? 0.0 : amount;
 
+    // 1. Calculate Implied Units (Reverse Calculation)
+    // User expects units to scale with budget.
+    const double perUnitBase = 350000.0;
+    final double perUnitCpf = BusinessConstants.cpfPerUnit;
+    // Cost basis for determining affordability
+    final double costPerUnit =
+        perUnitBase + (_state.cpfEnabled ? perUnitCpf : 0.0);
+
+    // We floor the units: e.g. 5L / 3.65L = 1.3 -> 1 Unit.
+    // This effectively answers "How many FULL units can I buy with this amount?"
+    int impliedUnits = costPerUnit > 0 ? (desired / costPerUnit).floor() : 0;
+
     // Use sustainable config solver so that if more capital is required to
     // avoid any loss, the amount is automatically increased (and rate lowered
     // if possible) until the schedule is self-sustaining.
     final result = _solveForSustainableConfig(
-      units: _state.units,
+      units: impliedUnits, // Use the new implied units
       currentRate: _state.rate,
       currentAmount: desired,
       tenureMonths: _state.months,
@@ -874,6 +886,7 @@ class EmiNotifier extends ChangeNotifier {
     );
 
     _state = _state.copyWith(
+      units: impliedUnits, // Update state with implied units
       amount: result.amount,
       rate: result.rate,
       hasAmountError: false,
