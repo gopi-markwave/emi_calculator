@@ -235,12 +235,6 @@ class _AmortizationTableState extends ConsumerState<AmortizationTable> {
                           ),
                         ),
                         GridColumn(
-                          columnName: 'cgf',
-                          label: _buildHeader(
-                            isYearly ? "CGF (Yearly)" : "CGF (Monthly)",
-                          ),
-                        ),
-                        GridColumn(
                           columnName: 'revenue',
                           label: _buildHeader("Revenue"),
                         ),
@@ -359,13 +353,6 @@ class _AmortizationTableState extends ConsumerState<AmortizationTable> {
         value: totalCpf,
         color: Colors.amber.shade700,
         icon: Icons.pets,
-        width: cardWidth,
-      ),
-      _buildTotalCard(
-        title: 'Total CGF',
-        value: totalCgf,
-        color: Colors.brown.shade600,
-        icon: Icons.grass, // Grass/Feed icon for CGF
         width: cardWidth,
       ),
       _buildTotalCard(
@@ -603,7 +590,6 @@ class AmortizationDataSource extends DataGridSource {
           DataGridCell<int>(columnName: 'month', value: row.month),
           DataGridCell<double>(columnName: 'emi', value: row.emi),
           DataGridCell<double>(columnName: 'cpf', value: row.cpf),
-          DataGridCell<double>(columnName: 'cgf', value: row.cgf),
           DataGridCell<double>(columnName: 'revenue', value: row.revenue),
           DataGridCell<double>(
             columnName: 'payment',

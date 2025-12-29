@@ -876,9 +876,13 @@ class EmiNotifier extends ChangeNotifier {
     // Use sustainable config solver so that if more capital is required to
     // avoid any loss, the amount is automatically increased (and rate lowered
     // if possible) until the schedule is self-sustaining.
+
+    // Attempt to restore rate to at least 18% if the new budget allows it.
+    final double targetRate = _state.rate < 18.0 ? 18.0 : _state.rate;
+
     final result = _solveForSustainableConfig(
       units: impliedUnits, // Use the new implied units
-      currentRate: _state.rate,
+      currentRate: targetRate, // Try to fetch high rate first
       currentAmount: desired,
       tenureMonths: _state.months,
       cpfEnabled: _state.cpfEnabled,
@@ -1483,7 +1487,6 @@ class EmiNotifier extends ChangeNotifier {
         isYearly ? 'Year' : 'Month': row.month,
         isYearly ? 'EMI (Yearly)' : 'EMI (Monthly)': row.emi.round(),
         isYearly ? 'CPF (Yearly)' : 'CPF (Monthly)': row.cpf.round(),
-        isYearly ? 'CGF (Yearly)' : 'CGF (Monthly)': row.cgf.round(),
         'Revenue': row.revenue.round(),
         'Payment': (row.emi + row.cpf + row.cgf).round(),
         'Debit From Balance':

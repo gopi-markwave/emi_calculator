@@ -94,7 +94,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
           Padding(
             padding: const EdgeInsets.only(right: 16),
             child: Text(
-              'v1.0.11',
+              'v1.0.13',
               style: GoogleFonts.inter(
                 fontSize: 12,
                 color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
